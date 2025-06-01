@@ -1,0 +1,12 @@
+[flake8]
+exclude = .git,__pycache__,migrations,venv,env,.env
+max-line-length = 119
+count = True
+# E203: whitespace before ':' (often conflicts with Black)
+# W503: line break before binary operator (often conflicts with Black)
+# E501: line too long (handled by max-line-length, but can be listed if specific E501s are ignored elsewhere)
+ignore = E203, W503
+# Per-file-ignores can be useful too:
+# per-file-ignores =
+#    */settings.py:E501
+#    */tests/*:S101  # Ignore assert statements in tests if using `assert` directly for some things (S101 is for assert)

@@ -1,0 +1,43 @@
+# Git files
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.env # Local environment variables should not be copied into the image
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files and reports (optional, depends on if you want them in image)
+# tests/
+# htmlcov/
+# .coverage
+# pytest.ini
+
+# Local SQLite database if used for local dev outside Docker
+db.sqlite3
+db.sqlite3-journal
+
+# Static files collected by Django (if collectstatic is run locally and not part of build)
+# staticfiles/ # Or your STATIC_ROOT
+
+# Media files (if served locally and not part of image strategy)
+# mediafiles/ # Or your MEDIA_ROOT
+
+# Docker specific files (if this .dockerignore is also used for context root)
+# Dockerfile
+# .dockerignore
+
+# OS specific
+.DS_Store
+Thumbs.db

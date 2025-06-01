@@ -1,0 +1,42 @@
+# Git files
+.git
+.gitignore
+
+# Node modules - these will be installed in the Docker image based on package-lock.json
+node_modules/
+
+# Next.js build output directory (this will be built inside the Docker image)
+.next/
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env # General .env file if used
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and OS specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Cypress files (if not needed in the final image)
+# cypress/
+# cypress.config.ts
+
+# Jest cache
+coverage/
+.jest-cache/
+
+# Other build outputs or temporary files
+# build/
+# dist/

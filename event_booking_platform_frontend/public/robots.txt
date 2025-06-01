@@ -1,0 +1,13 @@
+# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+
+User-agent: *
+Allow: /
+
+# Disallow crawling of specific paths if needed in the future, for example:
+# Disallow: /admin/
+# Disallow: /api/ # If you don't want API endpoints crawled directly by some bots
+# Disallow: /profile/ # Example for user-specific pages
+
+# Sitemap: [Full URL to your sitemap, e.g., https://www.yourdomain.com/sitemap.xml] (to be added later)
+# Sitemap: /sitemap.xml # Relative path can also work if domain is clear to crawlers
+Sitemap: /sitemap.xml # Placeholder for now

@@ -1,0 +1,137 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Updated to v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5 # Updated to v5
+        with:
+          python-version: '3.10' # Specify Python version
+
+      - name: Install backend dependencies
+        run: pip install -r event_booking_platform_backend/requirements.txt
+
+      - name: Run Flake8
+        run: |
+          pip install flake8 # Ensure flake8 is installed
+          flake8 event_booking_platform_backend/
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4 # Updated to v4
+        with:
+          node-version: '20' # Specify Node.js version
+
+      - name: Install frontend dependencies
+        run: cd event_booking_platform_frontend && npm install
+
+      - name: Run ESLint
+        run: cd event_booking_platform_frontend && npm run lint:ci # Use lint:ci for quieter output
+
+  test-backend:
+    name: Test Backend
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install backend dependencies
+        run: pip install -r event_booking_platform_backend/requirements.txt
+
+      - name: Create backend .env file
+        run: |
+          echo "DATABASE_URL=sqlite:///:memory:" > event_booking_platform_backend/.env
+          echo "REDIS_URL=redis://localhost:6379/1" >> event_booking_platform_backend/.env
+          echo "SECRET_KEY=testsecretkeyforci_backend" >> event_booking_platform_backend/.env
+          echo "DEBUG=True" >> event_booking_platform_backend/.env
+          # Dummy cache for tests to avoid Redis dependency in CI for unit tests
+          echo "CACHES = {'default': {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'}}" >> event_booking_platform_backend/.env
+
+      - name: Run backend tests
+        run: |
+          cd event_booking_platform_backend
+          pytest -W ignore::DeprecationWarning --cov=./ --cov-report=xml # Generate coverage report
+
+  test-frontend:
+    name: Test Frontend
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./event_booking_platform_frontend # Use working-directory for cleaner cd
+        run: npm install
+
+      - name: Create frontend .env file
+        working-directory: ./event_booking_platform_frontend
+        run: |
+          echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/mock_ci" > .env.local
+          # Add any other frontend env vars needed for tests/build
+
+      - name: Run frontend tests
+        working-directory: ./event_booking_platform_frontend
+        # The --ci flag is common for Jest. --json and --outputFile are for report generation.
+        # Add --passWithNoTests if Jest fails when no tests are found (might happen in early stages)
+        run: npm test -- --ci --reporters=default --reporters=jest-junit --coverage --passWithNoTests
+        # jest-junit can be added to devDependencies for JUnit XML report
+
+  build-docker-images:
+    name: Build Docker Images
+    needs: [test-backend, test-frontend] # Runs if both test jobs succeed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3 # Updated to v3
+
+      - name: Build backend Docker image
+        run: |
+          # Check if Dockerfile exists before building
+          if [ -f event_booking_platform_backend/Dockerfile ]; then
+            docker build -t backend-image:latest -f event_booking_platform_backend/Dockerfile event_booking_platform_backend/
+          else
+            echo "Backend Dockerfile not found, skipping build."
+          fi
+
+      - name: Build frontend Docker image
+        run: |
+          # Check if Dockerfile exists before building
+          if [ -f event_booking_platform_frontend/Dockerfile ]; then
+            docker build -t frontend-image:latest -f event_booking_platform_frontend/Dockerfile event_booking_platform_frontend/
+          else
+            echo "Frontend Dockerfile not found, skipping build."
+          fi
+
+      # No push step, as specified. Images are built but not pushed.
+      # To list images (optional):
+      # - name: List Docker images
+      #   run: docker images

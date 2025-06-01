@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      # These will be overridden by .env file if used with backend service,
+      # but good to have defaults or make them explicitly required.
+      # For local dev, often a separate .env file at root or per service is used.
+      # Here, we assume the backend's .env (from .env.example) will define these.
+      POSTGRES_DB: ${POSTGRES_DB:-eventplatform_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-eventuser_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventpass_dev}
+    ports:
+      - "5432:5432" # Expose for direct access if needed during dev
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data # Optional: for persistence if needed
+    ports:
+      - "6379:6379" # Optional: for direct access
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./event_booking_platform_backend
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./event_booking_platform_backend:/app # Mount local code for development
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./event_booking_platform_backend/.env # Developer creates this from .env.example
+    depends_on:
+      db:
+        condition: service_healthy # Or service_started if no healthcheck
+      cache:
+        condition: service_started # Redis usually starts quickly
+    restart: unless-stopped
+    # Healthcheck for PostgreSQL (optional but good for depends_on)
+    # (PostgreSQL image itself might have a healthcheck. If not, one can be added)
+    # For db service:
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventuser_dev} -d ${POSTGRES_DB:-eventplatform_dev}"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+
+  frontend:
+    build:
+      context: ./event_booking_platform_frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./event_booking_platform_frontend:/app # Mount local code
+      - /app/node_modules # Named volume to persist node_modules separate from local
+      - /app/.next       # Persist .next build cache if desired for faster rebuilds on restart
+    ports:
+      - "3000:3000"
+    environment:
+      # Ensures hot reloading works effectively with Docker volumes
+      - WATCHPACK_POLLING=true
+      # For Next.js to correctly identify the port in Docker
+      - PORT=3000
+    env_file:
+      - ./event_booking_platform_frontend/.env.local # Developer creates this from .env.local.example
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data: # Only needed if you added a volume to the cache service
