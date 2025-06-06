@@ -33,27 +33,54 @@ const VenuesPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchVenues = async () => {
-      try {
-        setLoading(true);
-        const data = await getVenues(); // No params for now, fetches all
-        setVenues(data.results); // Assuming results is the array of venues
-        setError(null);
-      } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('An unknown error occurred.');
-        }
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // State for filters
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [capacity, setCapacity] = useState<string>(''); // Store as string to handle empty input
+  const [availability, setAvailability] = useState<string>(''); // '', 'true', 'false'
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
 
-    fetchVenues();
+  const fetchVenues = async (params?: any) => {
+    try {
+      setLoading(true);
+      const data = await getVenues(params);
+      setVenues(data.results || []); // Ensure results is an array
+      setError(null);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+      console.error(err);
+      setVenues([]); // Clear venues on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVenues(); // Initial fetch with no parameters
   }, []);
+
+  const handleApplyFilters = () => {
+    const params: any = {};
+    if (searchTerm) params.search = searchTerm;
+    if (capacity) params.capacity = parseInt(capacity, 10);
+    if (availability) params.is_available = availability === 'true';
+    if (minPrice) params.min_price_per_hour = parseFloat(minPrice);
+    if (maxPrice) params.max_price_per_hour = parseFloat(maxPrice);
+    fetchVenues(params);
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setCapacity('');
+    setAvailability('');
+    setMinPrice('');
+    setMaxPrice('');
+    fetchVenues(); // Fetch all venues
+  };
 
   if (loading) {
     return (
@@ -73,21 +100,10 @@ const VenuesPage = () => {
     );
   }
 
-  if (venues.length === 0) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-xl text-gray-700">No venues found.</p>
-      </div>
-    );
-  }
-
-// ... (other imports remain the same)
-
-// ... (component logic remains the same up to the return statement)
-
+  // No venues found message handled after filter section
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-12">
+      <div className="flex justify-between items-center mb-6"> {/* Reduced margin bottom for filter section */}
         <h1 className="text-4xl font-bold text-gray-800">
           Available Venues
         </h1>
@@ -95,7 +111,55 @@ const VenuesPage = () => {
             Add New Venue
         </Link>
       </div>
-      <div className="flex flex-wrap justify-center">
+
+      {/* Filters Sidebar */}
+      <div className="filters-sidebar mb-6 p-4 border rounded-lg shadow">
+        <h3 className="text-xl font-semibold mb-4 text-gray-700">Filter Venues</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+          {/* Search Input */}
+          <div>
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700">Search</label>
+            <input type="text" name="search" id="search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2" placeholder="Name, address, amenities..." />
+          </div>
+          {/* Availability */}
+          <div>
+            <label htmlFor="is_available" className="block text-sm font-medium text-gray-700">Availability</label>
+            <select name="is_available" id="is_available" value={availability} onChange={e => setAvailability(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+              <option value="">Any</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          {/* Capacity */}
+          <div>
+            <label htmlFor="capacity" className="block text-sm font-medium text-gray-700">Min. Capacity</label>
+            <input type="number" name="capacity" id="capacity" value={capacity} onChange={e => setCapacity(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2" placeholder="e.g., 50" min="0" />
+          </div>
+          {/* Min Price Per Hour */}
+          <div>
+            <label htmlFor="min_price_per_hour" className="block text-sm font-medium text-gray-700">Min. Price/Hour</label>
+            <input type="number" name="min_price_per_hour" id="min_price_per_hour" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2" placeholder="e.g., 20" min="0" />
+          </div>
+          {/* Max Price Per Hour */}
+          <div>
+            <label htmlFor="max_price_per_hour" className="block text-sm font-medium text-gray-700">Max. Price/Hour</label>
+            <input type="number" name="max_price_per_hour" id="max_price_per_hour" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2" placeholder="e.g., 100" min="0" />
+          </div>
+        </div>
+        <div className="mt-6 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
+          <button onClick={handleClearFilters} className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Clear Filters</button>
+          <button onClick={handleApplyFilters} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Apply Filters</button>
+        </div>
+      </div>
+
+      {/* Venues List / No Venues Found Message */}
+      {!loading && venues.length === 0 && (
+        <div className="text-center py-10">
+          <p className="text-xl text-gray-700">No venues found matching your criteria.</p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap justify-center gap-6"> {/* Added gap for cards */}
         {venues.map((venue) => (
           <VenueCard key={venue.id} venue={venue} />
         ))}

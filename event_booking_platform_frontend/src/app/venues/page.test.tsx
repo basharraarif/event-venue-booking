@@ -74,7 +74,7 @@ describe('VenuesPage Component', () => {
 
     await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
 
-    expect(screen.getByText(/no venues found/i)).toBeInTheDocument();
+    expect(screen.getByText(/no venues found matching your criteria./i)).toBeInTheDocument(); // Updated text
   });
 
   it('has a link to "Add New Venue" page', async () => {
@@ -85,5 +85,159 @@ describe('VenuesPage Component', () => {
     const addVenueLink = screen.getByRole('link', { name: /add new venue/i });
     expect(addVenueLink).toBeInTheDocument();
     expect(addVenueLink).toHaveAttribute('href', '/venues/new');
+  });
+
+  describe('Filtering Functionality', () => {
+    beforeEach(() => {
+      // Ensure initial load for each filtering test
+      mockGetVenues.mockResolvedValue({ results: mockVenuesData, count: mockVenuesData.length, next: null, previous: null });
+    });
+
+    it('renders all filter UI elements', async () => {
+      renderWithAuthProvider(<VenuesPage />);
+      await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
+
+      expect(screen.getByLabelText(/search/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/availability/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/min. capacity/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/min. price\/hour/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/max. price\/hour/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /apply filters/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument();
+    });
+
+    it('updates input fields on user interaction', async () => {
+      renderWithAuthProvider(<VenuesPage />);
+      await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
+
+      const searchInput = screen.getByLabelText(/search/i) as HTMLInputElement;
+      fireEvent.change(searchInput, { target: { value: 'Test Search' } });
+      expect(searchInput.value).toBe('Test Search');
+
+      const capacityInput = screen.getByLabelText(/min. capacity/i) as HTMLInputElement;
+      fireEvent.change(capacityInput, { target: { value: '150' } });
+      expect(capacityInput.value).toBe('150');
+
+      const availabilitySelect = screen.getByLabelText(/availability/i) as HTMLSelectElement;
+      fireEvent.change(availabilitySelect, { target: { value: 'true' } });
+      expect(availabilitySelect.value).toBe('true');
+
+      const minPriceInput = screen.getByLabelText(/min. price\/hour/i) as HTMLInputElement;
+      fireEvent.change(minPriceInput, { target: { value: '30' } });
+      expect(minPriceInput.value).toBe('30');
+
+      const maxPriceInput = screen.getByLabelText(/max. price\/hour/i) as HTMLInputElement;
+      fireEvent.change(maxPriceInput, { target: { value: '90' } });
+      expect(maxPriceInput.value).toBe('90');
+    });
+
+    it('fetches venues with correct parameters when "Apply Filters" is clicked', async () => {
+      // Initial load with all venues
+      mockGetVenues.mockResolvedValueOnce({ results: mockVenuesData, count: mockVenuesData.length, next: null, previous: null });
+      renderWithAuthProvider(<VenuesPage />);
+      await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
+
+      // Mock response for filtered data
+      const filteredVenue = { ...mockVenuesData[0], name: 'Filtered Alpha' };
+      mockGetVenues.mockResolvedValueOnce({ results: [filteredVenue], count: 1, next: null, previous: null });
+
+      fireEvent.change(screen.getByLabelText(/search/i), { target: { value: 'Alpha' } });
+      fireEvent.change(screen.getByLabelText(/min. capacity/i), { target: { value: '50' } });
+      fireEvent.change(screen.getByLabelText(/availability/i), { target: { value: 'true' } });
+      fireEvent.change(screen.getByLabelText(/min. price\/hour/i), { target: { value: '40' } });
+      fireEvent.change(screen.getByLabelText(/max. price\/hour/i), { target: { value: '60' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /apply filters/i }));
+
+      await waitFor(() => {
+        expect(mockGetVenues).toHaveBeenLastCalledWith({
+          search: 'Alpha',
+          capacity: 50,
+          is_available: true,
+          min_price_per_hour: 40,
+          max_price_per_hour: 60,
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Filtered Alpha')).toBeInTheDocument(); // Displays filtered venue
+        expect(screen.queryByText('Venue Beta')).not.toBeInTheDocument(); // Original Venue Beta should be filtered out
+      });
+    });
+
+    it('does not send empty or default filter values in params', async () => {
+      mockGetVenues.mockResolvedValueOnce({ results: mockVenuesData, count: mockVenuesData.length, next: null, previous: null });
+      renderWithAuthProvider(<VenuesPage />);
+      await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
+
+      mockGetVenues.mockResolvedValueOnce({ results: [mockVenuesData[0]], count: 1, next: null, previous: null });
+
+      fireEvent.change(screen.getByLabelText(/search/i), { target: { value: 'Specific' } });
+      // Capacity, availability, min/max price are left empty/default
+
+      fireEvent.click(screen.getByRole('button', { name: /apply filters/i }));
+
+      await waitFor(() => {
+        expect(mockGetVenues).toHaveBeenLastCalledWith({
+          search: 'Specific',
+          // Other params should be absent
+        });
+      });
+       // Ensure only the search param was sent
+      const lastCallArgs = mockGetVenues.mock.lastCall[0];
+      expect(lastCallArgs).not.toHaveProperty('capacity');
+      expect(lastCallArgs).not.toHaveProperty('is_available');
+      expect(lastCallArgs).not.toHaveProperty('min_price_per_hour');
+      expect(lastCallArgs).not.toHaveProperty('max_price_per_hour');
+    });
+
+
+    it('clears filters and fetches all venues when "Clear Filters" is clicked', async () => {
+      // Initial load
+      mockGetVenues.mockResolvedValueOnce({ results: mockVenuesData, count: mockVenuesData.length, next: null, previous: null });
+      renderWithAuthProvider(<VenuesPage />);
+      await waitFor(() => expect(screen.queryByText(/loading venues.../i)).not.toBeInTheDocument());
+
+      // Apply some filters first
+      fireEvent.change(screen.getByLabelText(/search/i), { target: { value: 'Alpha' } });
+      fireEvent.change(screen.getByLabelText(/min. capacity/i), { target: { value: '100' } });
+      fireEvent.change(screen.getByLabelText(/availability/i), { target: { value: 'true' } });
+
+      // Mock response for filtered data
+      const filteredVenue = { ...mockVenuesData[0], name: 'Filtered Alpha Only' };
+      mockGetVenues.mockResolvedValueOnce({ results: [filteredVenue], count: 1, next: null, previous: null });
+      fireEvent.click(screen.getByRole('button', { name: /apply filters/i }));
+
+      await waitFor(() => expect(screen.getByText('Filtered Alpha Only')).toBeInTheDocument());
+      expect(mockGetVenues).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'Alpha', capacity: 100, is_available: true }));
+
+
+      // Mock response for clearing filters (back to all venues)
+      // Use different names to ensure UI is re-rendering with new data
+      const refreshedMockVenues = [
+        { ...mockVenuesData[0], name: "Refreshed Alpha" },
+        { ...mockVenuesData[1], name: "Refreshed Beta" },
+      ];
+      mockGetVenues.mockResolvedValueOnce({ results: refreshedMockVenues, count: refreshedMockVenues.length, next: null, previous: null });
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+
+      // Check if getVenues was called without parameters (or with an empty object)
+      await waitFor(() => expect(mockGetVenues).toHaveBeenLastCalledWith()); // Called with no args for all venues
+
+      // Check if input fields are reset
+      expect((screen.getByLabelText(/search/i) as HTMLInputElement).value).toBe('');
+      expect((screen.getByLabelText(/min. capacity/i) as HTMLInputElement).value).toBe('');
+      expect((screen.getByLabelText(/availability/i) as HTMLSelectElement).value).toBe('');
+      expect((screen.getByLabelText(/min. price\/hour/i) as HTMLInputElement).value).toBe('');
+      expect((screen.getByLabelText(/max. price\/hour/i) as HTMLInputElement).value).toBe('');
+
+      // Check if UI updates with all venues
+      await waitFor(() => {
+        expect(screen.getByText('Refreshed Alpha')).toBeInTheDocument();
+        expect(screen.getByText('Refreshed Beta')).toBeInTheDocument();
+        expect(screen.queryByText('Filtered Alpha Only')).not.toBeInTheDocument();
+      });
+    });
   });
 });

@@ -135,3 +135,98 @@ jobs:
       # To list images (optional):
       # - name: List Docker images
       #   run: docker images
+
+  e2e-tests:
+    name: Run Frontend E2E Tests
+    needs: [test-backend, test-frontend, build-docker-images] # Depends on tests and builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js # For any host-level npm/node scripts, if necessary.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Create backend .env file for E2E
+        run: |
+          echo "DATABASE_URL=sqlite:///:memory:" > event_booking_platform_backend/.env
+          # For E2E, we might want a persistent DB or a test-specific setup if :memory: isn't shared correctly.
+          # However, for most cases where E2E primarily tests frontend against mocked backend or a live but reset backend, this is fine.
+          # If using docker-compose, ensure this .env is picked up by the backend service.
+          # The backend Dockerfile or docker-compose.yml should handle copying this .env.
+          # For now, we assume it's correctly placed to be used by the backend service in docker-compose.
+          echo "REDIS_URL=redis://redis:6379/1" >> event_booking_platform_backend/.env # Use service name 'redis'
+          echo "SECRET_KEY=testsecretkeyforci_e2e_backend" >> event_booking_platform_backend/.env
+          echo "DEBUG=True" >> event_booking_platform_backend/.env
+          echo "ALLOWED_HOSTS=*" >> event_booking_platform_backend/.env # Allow any host for CI
+          echo "CACHES = {'default': {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'}}" >> event_booking_platform_backend/.env
+
+
+      - name: Create frontend .env.local file for E2E
+        working-directory: ./event_booking_platform_frontend
+        run: |
+          echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api" > .env.local
+          # Ensure this is picked up by the frontend service in docker-compose.
+          # The frontend Dockerfile or docker-compose.yml should handle this.
+
+      - name: Ensure docker-compose.yml is configured correctly
+        run: |
+          # This is a placeholder for any checks or modifications needed for docker-compose.yml in CI
+          # For example, ensuring ports are mapped to localhost if tests run from the host talking to containers.
+          # Or ensuring service names are used if tests run within a container talking to another.
+          # The current setup assumes NEXT_PUBLIC_API_BASE_URL points to localhost:8000,
+          # so docker-compose must map backend's 8000 to host's 8000.
+          if [ ! -f docker-compose.yml ]; then
+            echo "docker-compose.yml not found!"
+            exit 1
+          fi
+          # Example: Check if backend port 8000 is exposed to host 8000
+          # This check is illustrative. Actual check might be more complex or unnecessary if config is known.
+          # grep -q "8000:8000" docker-compose.yml || (echo "Backend port 8000 not mapped to host 8000 in docker-compose.yml" && exit 1)
+
+
+      - name: Build and Run Docker Services in Background
+        run: docker-compose up --build -d
+        # --build is included to ensure images are fresh or rebuilt if necessary.
+        # -d runs them in detached mode.
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for backend (http://localhost:8000/api/schema/swagger-ui/) to be ready..."
+          timeout 120s bash -c 'until curl -s -f http://localhost:8000/api/schema/swagger-ui/ > /dev/null; do echo "Backend not up yet, sleeping for 5s..."; sleep 5; done'
+          echo "Backend is up."
+
+          echo "Waiting for frontend (http://localhost:3000) to be ready..."
+          timeout 120s bash -c 'until curl -s -f http://localhost:3000 > /dev/null; do echo "Frontend not up yet, sleeping for 5s..."; sleep 5; done'
+          echo "Frontend is up."
+
+      # The npm install step here runs on the GitHub Actions runner, not in the container.
+      # Cypress dependencies should be part of the frontend Docker image.
+      # If `npm run cypress:run` is executed via `docker-compose exec`, that command runs *inside* the container.
+      # So, this step might be for ensuring the host can run some Cypress-related commands if needed,
+      # or it's a misunderstanding of where Cypress runs.
+      # Assuming `cypress:run` in package.json inside the frontend container handles everything.
+      # - name: Install frontend dependencies (for host, if needed for any reason)
+      #   working-directory: ./event_booking_platform_frontend
+      #   run: npm install
+
+      - name: Run Cypress E2E tests
+        # The -T flag is important for non-interactive environments like CI
+        # This command executes `npm run cypress:run` INSIDE the 'frontend' service container
+        run: docker-compose exec -T frontend npm run cypress:run
+
+      - name: Stop Docker Services
+        if: always() # Ensures services are stopped even if tests fail or are cancelled
+        run: docker-compose down
+
+      # Optional: Upload Cypress artifacts (screenshots/videos) on failure
+      - name: Upload Cypress Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4 # Updated to v4
+        with:
+          name: cypress-artifacts
+          path: |
+            event_booking_platform_frontend/cypress/screenshots
+            event_booking_platform_frontend/cypress/videos

@@ -10,8 +10,8 @@ The platform consists of a Django REST Framework backend and a Next.js frontend,
 
 *   **Venue Management:**
     *   CRUD operations for venues (Create, Read, Update, Delete).
-    *   Filtering venues by capacity, availability, price.
-    *   Searching venues by name, address, and amenities.
+    *   Filtering venues by capacity, availability, and price via the UI.
+    *   Searching venues by name, address, and amenities via the UI.
 *   **User Authentication:**
     *   Basic user registration (username, email, password).
     *   Token-based authentication (login/logout).
@@ -162,5 +162,21 @@ The backend API documentation is automatically generated using `drf-spectacular`
 
 ## Contributing
 
-(Placeholder for contribution guidelines - to be added later)
+We welcome contributions to enhance the Event & Venue Booking Management SaaS Platform! To contribute, please follow these steps:
+
+1.  **Fork the Repository:** Create your own fork of the project on GitHub.
+2.  **Create a Branch:** Before making any changes, create a new branch from the `develop` branch (or `main` if `develop` doesn't exist/isn't primary):
+    *   For new features: `git checkout -b feature/your-descriptive-feature-name`
+    *   For bug fixes: `git checkout -b fix/your-bug-fix-description`
+3.  **Make Your Changes:** Implement your feature or bug fix.
+4.  **Write Clear Commit Messages:** Follow standard commit message conventions. Briefly explain the "what" and "why" of your changes.
+5.  **Run Tests:** Ensure all tests pass before submitting your changes.
+    *   **Backend Tests:** From the project root, run `docker-compose exec backend pytest`
+    *   **Frontend Unit Tests:** From the project root, run `docker-compose exec frontend npm test`
+    *   **Frontend E2E Tests:** Ensure the application is running (e.g., via `docker-compose up -d`). Then, from the `event_booking_platform_frontend` directory, you can run `npm run cypress:open` for interactive mode or `npm run cypress:run` for headless mode. These are also run in CI.
+6.  **Push Your Changes:** Push your branch to your forked repository: `git push origin feature/your-descriptive-feature-name`
+7.  **Submit a Pull Request:** Open a pull request from your forked repository's branch to the main project's `develop` branch (or `main` if that's the target).
+    *   Provide a clear title and description for your pull request, outlining the changes made and any relevant context.
+
+We appreciate your contributions to making this platform better!
 ```
