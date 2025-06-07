@@ -8,25 +8,25 @@ interface VenueCardProps {
 
 const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
   return (
-    <div className="bg-white shadow-lg rounded-lg overflow-hidden m-4 w-full md:w-1/2 lg:w-1/3 xl:w-1/4">
+    <div className="bg-white shadow-lg rounded-lg overflow-hidden m-4 w-full md:w-1/2 lg:w-1/3 xl:w-1/4" data-cy="venue-card">
       {/* You can add an image here later if venues have images */}
       {/* <img className="w-full h-48 object-cover" src={venue.imageUrl || '/placeholder-image.jpg'} alt={venue.name} /> */}
 
       <div className="p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">{venue.name}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2" data-cy="venue-name">{venue.name}</h2>
         <p className="text-gray-600 text-sm mb-4">{venue.address}</p>
 
         <div className="mb-4">
-          <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded">
+          <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-capacity">
             Capacity: {venue.capacity}
           </span>
           {venue.is_available && (
-            <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded">
+            <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-availability-status">
               Available
             </span>
           )}
           {!venue.is_available && (
-            <span className="inline-block bg-red-100 text-red-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded">
+            <span className="inline-block bg-red-100 text-red-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-availability-status">
               Not Available
             </span>
           )}
@@ -34,7 +34,7 @@ const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
 
         <div className="text-gray-700 mb-1">
           {venue.pricing_per_hour && (
-            <p><strong>Price per hour:</strong> ${parseFloat(venue.pricing_per_hour).toFixed(2)}</p>
+            <p data-cy="venue-price-per-hour"><strong>Price per hour:</strong> ${parseFloat(venue.pricing_per_hour).toFixed(2)}</p>
           )}
           {venue.pricing_per_day && (
             <p><strong>Price per day:</strong> ${parseFloat(venue.pricing_per_day).toFixed(2)}</p>
