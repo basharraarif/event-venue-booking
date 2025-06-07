@@ -16,7 +16,9 @@
     "cy:run": "start-server-and-test dev http://localhost:3000 \"npx cypress run --reporter mochawesome --reporter-options 'reportDir=cypress/results,overwrite=false,html=false,json=true' --spec cypress/e2e/venues_list.cy.ts\""
   },
   "dependencies": {
+    "@types/lodash": "^4.17.17",
     "axios": "^1.9.0",
+    "lodash": "^4.17.21",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18"

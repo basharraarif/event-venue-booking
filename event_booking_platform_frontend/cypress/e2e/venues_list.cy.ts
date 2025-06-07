@@ -1,258 +1,243 @@
-describe('Venues Listing Page', () => {
+describe('Venue Listing Page - Basic Display', () => {
   beforeEach(() => {
-    // Optional: Mock API responses if not running against a live dev server with data.
-    // Example: cy.intercept('GET', '/api/venues/?*', { fixture: 'venues.json' }).as('getVenues');
-    // if (cy.contains('Loading venues...', {timeout: 7000})) { // Wait for loading to finish
-    //   cy.contains('Loading venues...', {timeout: 7000}).should('not.exist');
-    // }
-  });
-
-  it('should display the page title correctly', () => {
+    // For basic display, we assume some venues might exist or none.
+    // Intercepting the initial call helps stabilize tests.
+    cy.intercept('GET', '/api/venues*page=1*').as('getInitialVenues');
     cy.visit('/venues');
-    cy.screenshot('venues-page-load');
-    cy.document().its('documentElement.outerHTML').then(html => {
-      cy.log(html);
-    });
-    cy.get('h1').contains('Available Venues'); // Or whatever the title element and text is
+    cy.wait('@getInitialVenues', { timeout: 10000 }); // Wait for initial load
   });
 
-  it('should display at least one venue card or a "no venues found" message', () => {
-    // This test is flexible: it passes if venues are loaded OR if a "no venues" message is shown.
-    // This avoids test failure if the backend has no data during the E2E test run.
-    // For a more specific test, you'd ensure data exists or mock it.
+  it('should display the main page title "Venues"', () => {
+    cy.get('h1').contains('Venues').should('be.visible'); // From VenueList.tsx
+  });
+
+  it('should display venue cards if venues exist, or a "no venues" message', () => {
     cy.get('body').then(($body) => {
-      if ($body.find('[class*="VenueCard_"]').length > 0) { // Check for class containing VenueCard (adapt selector)
+      if ($body.find('[data-cy="venue-card"]').length > 0) {
         cy.log('Venue cards found');
-        // Optionally, check for specific content within a card
-        // cy.get('[class*="VenueCard_"]').first().should('contain.text', 'Venue Name'); // Example
-      } else if ($body.find('p:contains("No venues found")').length > 0) {
-        cy.log('No venues found message displayed');
-        cy.contains('No venues found').should('be.visible');
-      } else if ($body.find(':contains("Loading venues...")').length > 0) {
-        // If still loading after initial visit, wait a bit more
-        cy.contains('Loading venues...', { timeout: 10000 }).should('not.exist');
-        // Re-check after loading
-        if ($body.find('[class*="VenueCard_"]').length > 0) {
-          cy.log('Venue cards found after loading');
-        } else if ($body.find('p:contains("No venues found")').length > 0) {
-          cy.log('No venues found message displayed after loading');
-          cy.contains('No venues found').should('be.visible');
+        cy.get('[data-cy="venue-card"]').first().should('be.visible');
+      } else if ($body.find('[data-cy="no-venues-message"]').length > 0) {
+        cy.log('No venues message found');
+        cy.get('[data-cy="no-venues-message"]').should('be.visible');
+      } else if ($body.find('[data-cy="loading-venues-message"]').length > 0) {
+        cy.log('Still loading, waiting a bit more.'); // Should have been caught by wait in beforeEach
+        cy.get('[data-cy="loading-venues-message"]', { timeout: 10000 }).should('not.exist');
+        // Re-check after potential extended loading
+        if ($body.find('[data-cy="venue-card"]').length > 0) {
+            cy.log('Venue cards found after extended wait');
         } else {
-            // If neither venues nor "no venues" message, it might be an issue or still loading
-            // This could be an assertion failure point if the app state is unexpected.
-            // For now, just log it. In a stricter test, you might fail here.
-            cy.log('Neither venues nor "no venues" message found after loading period.');
+            cy.get('[data-cy="no-venues-message"]').should('be.visible');
         }
-      } else {
-        // Fallback if none of the above states are immediately found
-        // This could indicate an error page or an unexpected state.
-        // Consider adding a cy.screenshot() here for debugging.
-        cy.log('Initial check found neither venue cards, "no venues" message, nor loading indicator.');
-        // Potentially fail the test if this state is not expected:
-        // throw new Error('Unexpected page state: No venues, no "no venues" message, and not loading.');
+      }
+      else {
+        // This case might indicate an error page or unexpected state.
+        cy.log('Neither venue cards nor "no venues" message found. Error page?');
+        cy.get('[data-cy="error-venues-message"]').should('be.visible');
       }
     });
   });
 
-  it('should have a link/button to "Add New Venue"', () => {
-    cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step
-    cy.get('a[href="/venues/new"]').contains('Add New Venue', { matchCase: false })
-      .should('be.visible');
+  it('should display pagination controls if venues exist', () => {
+    cy.get('body').then(($body) => {
+      if ($body.find('[data-cy="venue-card"]').length > 0) {
+        cy.get('[data-cy="pagination-page-display"]').should('be.visible');
+        cy.get('[data-cy="pagination-prev-button"]').should('be.visible');
+        cy.get('[data-cy="pagination-next-button"]').should('be.visible');
+      } else {
+        cy.log('No venues, so no pagination expected.');
+      }
+    });
   });
 
-  it('should navigate to the "Add New Venue" page when the link is clicked', () => {
-    cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step
-    cy.get('a[href="/venues/new"]').contains('Add New Venue', { matchCase: false }).click();
-    cy.url().should('include', '/venues/new');
-    cy.get('h1').contains('Add New Venue'); // Check for title on the new page
+  it('should have "Create New Venue" link(s)', () => {
+    // VenueList component has this link, and it might also be in a layout if this page is part of a larger app structure
+    cy.get('a').contains('Create New Venue').should('be.visible');
   });
 });
 
-describe('Venues Listing Page - Filtering & Searching', () => {
-  const mockVenues = {
-    all: [
-      { id: 1, name: 'Grand Plaza Hall', address: '123 Main St', capacity: 200, is_available: true, pricing_per_hour: '150.00' },
-      { id: 2, name: 'Cozy Corner Room', address: '456 Oak Ave', capacity: 50, is_available: false, pricing_per_hour: '50.00' },
-      { id: 3, name: 'Tech Conference Center', address: '789 Pine Rd', capacity: 500, is_available: true, pricing_per_hour: '300.00' },
-      { id: 4, name: 'Riverside Pavilion', address: '101 River Bend', capacity: 100, is_available: true, pricing_per_hour: '80.00' },
-    ],
-    searchByName: [
-      { id: 1, name: 'Grand Plaza Hall', address: '123 Main St', capacity: 200, is_available: true, pricing_per_hour: '150.00' },
-    ],
-    availableOnly: [
-      { id: 1, name: 'Grand Plaza Hall', address: '123 Main St', capacity: 200, is_available: true, pricing_per_hour: '150.00' },
-      { id: 3, name: 'Tech Conference Center', address: '789 Pine Rd', capacity: 500, is_available: true, pricing_per_hour: '300.00' },
-      { id: 4, name: 'Riverside Pavilion', address: '101 River Bend', capacity: 100, is_available: true, pricing_per_hour: '80.00' },
-    ],
-    capacity150plus: [
-      { id: 1, name: 'Grand Plaza Hall', address: '123 Main St', capacity: 200, is_available: true, pricing_per_hour: '150.00' },
-      { id: 3, name: 'Tech Conference Center', address: '789 Pine Rd', capacity: 500, is_available: true, pricing_per_hour: '300.00' },
-    ],
-    priceRange50to100: [
-      { id: 4, name: 'Riverside Pavilion', address: '101 River Bend', capacity: 100, is_available: true, pricing_per_hour: '80.00' },
-      // Cozy Corner Room would fit if it were available and price was the only filter
-    ],
-    combinedSearchAndAvailable: [
-       { id: 4, name: 'Riverside Pavilion', address: '101 River Bend', capacity: 100, is_available: true, pricing_per_hour: '80.00' },
-    ],
-    noResults: []
-  };
-
-  // Assuming VenueCard component has a root div with class 'venue-card-item' or similar for consistent selection
-  const venueCardSelector = '.relative.flex.flex-col'; // Based on VenueCard structure from previous context (outer div)
+describe('Venue Listing - Filtering and Searching', () => {
+  // Mocked data for consistent testing of filtering/searching
+  const mockVenuesSeed = [
+    { id: 1, name: 'Grand Plaza Hall', address: '123 Main St', capacity: 200, is_available: true, pricing_per_hour: '150.00', description: 'Opulent hall for grand events.', amenities: {wifi: true, stage: true} },
+    { id: 2, name: 'Cozy Corner Room', address: '456 Oak Ave', capacity: 50, is_available: false, pricing_per_hour: '50.00', description: 'Perfect for small meetings.', amenities: {projector: true} },
+    { id: 3, name: 'Tech Conference Center', address: '789 Pine Rd', capacity: 500, is_available: true, pricing_per_hour: '300.00', description: 'State-of-the-art facility.', amenities: {wifi: true, parking: true, catering: true} },
+    { id: 4, name: 'Riverside Pavilion', address: '101 River Bend', capacity: 100, is_available: true, pricing_per_hour: '80.00', description: 'Scenic outdoor setting.', amenities: {outdoor_space: true} },
+    { id: 5, name: 'Downtown Studio Loft', address: '55 Central Sq', capacity: 75, is_available: true, pricing_per_hour: '120.00', description: 'Chic urban space.', amenities: {wifi: true, kitchen: true} },
+  ];
 
   beforeEach(() => {
-    cy.intercept('GET', '/api/venues/?', {
-      statusCode: 200,
-      body: { results: mockVenues.all, count: mockVenues.all.length, next: null, previous: null },
+    // Intercept the initial GET request for venues (page 1, no filters)
+    cy.intercept('GET', '/api/venues*', (req) => {
+        // This initial intercept will catch any call to /api/venues.
+        // We can refine it based on query parameters if needed for specific initial states.
+        // For now, assume it's the default load.
+        if (!req.url.includes('?')) { // A very basic check for no query params
+            req.reply({
+                statusCode: 200,
+                body: { results: mockVenuesSeed, count: mockVenuesSeed.length, next: null, previous: null },
+            });
+        }
+        // Let other specific intercepts handle filtered requests
     }).as('getInitialVenues');
-    // cy.visit('/venues') will be called in each test or a sub-beforeEach if needed for this block.
-    // This is to avoid conflict with the general beforeEach in the parent describe.
-    // For now, let's assume tests in this block will handle their own visit or this beforeEach will be refined.
-    // To ensure this beforeEach runs correctly for its tests:
+
     cy.visit('/venues');
-    cy.wait('@getInitialVenues');
-    cy.get('h1').contains('Available Venues').should('be.visible');
+    cy.wait('@getInitialVenues', {timeout: 10000});
   });
 
-  it('should filter venues by search term', () => {
-    cy.intercept('GET', '/api/venues/?search=Grand*', {
+  it('should filter venues by search term (name)', () => {
+    const searchTerm = 'Grand Plaza';
+    const expectedResult = mockVenuesSeed.filter(v => v.name.includes('Grand Plaza'));
+    cy.intercept('GET', `/api/venues*search=${encodeURIComponent(searchTerm)}*`, {
       statusCode: 200,
-      body: { results: mockVenues.searchByName, count: mockVenues.searchByName.length, next: null, previous: null },
-    }).as('getFilteredByName');
+      body: { results: expectedResult, count: expectedResult.length, next: null, previous: null },
+    }).as('getVenuesBySearch');
 
-    cy.get('input[name="search"]').type('Grand');
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getFilteredByName');
+    cy.get('[data-cy="search-input"]').clear().type(searchTerm);
+    cy.wait('@getVenuesBySearch');
 
-    cy.get(venueCardSelector).should('have.length', mockVenues.searchByName.length);
-    cy.contains(venueCardSelector, 'Grand Plaza Hall').should('be.visible');
-    cy.contains(venueCardSelector, 'Cozy Corner Room').should('not.exist');
-  });
-
-  it('should filter venues by availability (Yes)', () => {
-    cy.intercept('GET', '/api/venues/?is_available=true', {
-      statusCode: 200,
-      body: { results: mockVenues.availableOnly, count: mockVenues.availableOnly.length, next: null, previous: null },
-    }).as('getFilteredByAvailability');
-
-    cy.get('select[name="is_available"]').select('true'); // Value for "Yes"
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getFilteredByAvailability');
-
-    cy.get(venueCardSelector).should('have.length', mockVenues.availableOnly.length);
-    mockVenues.availableOnly.forEach(venue => {
-      cy.contains(venueCardSelector, venue.name).should('be.visible');
-    });
-    cy.contains(venueCardSelector, 'Cozy Corner Room').should('not.exist'); // This one is is_available: false
+    cy.get('[data-cy="venue-card"]').should('have.length', expectedResult.length);
+    if (expectedResult.length > 0) {
+      cy.get('[data-cy="venue-card"]').first().find('[data-cy="venue-name"]').should('contain.text', 'Grand Plaza Hall');
+    }
   });
 
   it('should filter venues by minimum capacity', () => {
-    cy.intercept('GET', '/api/venues/?capacity=150', {
+    const minCapacity = 150;
+    const expectedResult = mockVenuesSeed.filter(v => v.capacity >= minCapacity);
+    cy.intercept('GET', `/api/venues*capacity__gte=${minCapacity}*`, {
       statusCode: 200,
-      body: { results: mockVenues.capacity150plus, count: mockVenues.capacity150plus.length, next: null, previous: null },
-    }).as('getFilteredByCapacity');
+      body: { results: expectedResult, count: expectedResult.length, next: null, previous: null },
+    }).as('getVenuesByCapacity');
 
-    cy.get('input[name="capacity"]').type('150');
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getFilteredByCapacity');
+    cy.get('[data-cy="filter-capacity-input"]').clear().type(minCapacity.toString());
+    cy.wait('@getVenuesByCapacity');
 
-    cy.get(venueCardSelector).should('have.length', mockVenues.capacity150plus.length);
-    mockVenues.capacity150plus.forEach(venue => {
-      cy.contains(venueCardSelector, venue.name).should('be.visible');
+    cy.get('[data-cy="venue-card"]').should('have.length', expectedResult.length);
+    cy.get('[data-cy="venue-card"]').each(($card) => {
+      cy.wrap($card).find('[data-cy="venue-capacity"]').invoke('text').then(text => {
+        const capacity = parseInt(text.replace('Capacity: ', ''), 10);
+        expect(capacity).to.be.gte(minCapacity);
+      });
     });
-    cy.contains(venueCardSelector, 'Riverside Pavilion').should('not.exist'); // Capacity 100
   });
 
-  it('should filter venues by price range', () => {
-    cy.intercept('GET', '/api/venues/?min_price_per_hour=50&max_price_per_hour=100', {
+  it('should filter venues by availability (Available)', () => {
+    const expectedResult = mockVenuesSeed.filter(v => v.is_available);
+    cy.intercept('GET', `/api/venues*is_available=true*`, {
       statusCode: 200,
-      body: { results: mockVenues.priceRange50to100, count: mockVenues.priceRange50to100.length, next: null, previous: null },
-    }).as('getFilteredByPrice');
+      body: { results: expectedResult, count: expectedResult.length, next: null, previous: null },
+    }).as('getVenuesByAvailability');
 
-    cy.get('input[name="min_price_per_hour"]').type('50');
-    cy.get('input[name="max_price_per_hour"]').type('100');
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getFilteredByPrice');
+    cy.get('[data-cy="filter-availability-select"]').select('true'); // 'true' for Available
+    cy.wait('@getVenuesByAvailability');
 
-    cy.get(venueCardSelector).should('have.length', mockVenues.priceRange50to100.length);
-    if (mockVenues.priceRange50to100.length > 0) {
-        mockVenues.priceRange50to100.forEach(venue => {
-            cy.contains(venueCardSelector, venue.name).should('be.visible');
-        });
-    } else {
-        cy.contains('No venues found matching your criteria.').should('be.visible');
-    }
-    cy.contains(venueCardSelector, 'Grand Plaza Hall').should('not.exist'); // Price 150
-  });
-
-  it('should filter by combined criteria (search term and availability)', () => {
-    cy.intercept('GET', '/api/venues/?search=Riverside&is_available=true', {
-      statusCode: 200,
-      body: { results: mockVenues.combinedSearchAndAvailable, count: mockVenues.combinedSearchAndAvailable.length, next: null, previous: null },
-    }).as('getCombinedFilter');
-
-    cy.get('input[name="search"]').type('Riverside');
-    cy.get('select[name="is_available"]').select('true');
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getCombinedFilter');
-
-    cy.get(venueCardSelector).should('have.length', mockVenues.combinedSearchAndAvailable.length);
-    mockVenues.combinedSearchAndAvailable.forEach(venue => {
-      cy.contains(venueCardSelector, venue.name).should('be.visible');
+    cy.get('[data-cy="venue-card"]').should('have.length', expectedResult.length);
+    cy.get('[data-cy="venue-card"]').each(($card) => {
+      cy.wrap($card).find('[data-cy="venue-availability-status"]').should('contain.text', 'Available');
     });
-    cy.contains(venueCardSelector, 'Grand Plaza Hall').should('not.exist');
   });
 
-  it('should display "No venues found" message when filters yield no results', () => {
-    cy.intercept('GET', '/api/venues/?search=UnfindableVenueName123', {
+  it('should filter venues by price range (e.g., $70 to $160 per hour)', () => {
+    const minPrice = 70;
+    const maxPrice = 160;
+    const expectedResult = mockVenuesSeed.filter(v => {
+      const price = parseFloat(v.pricing_per_hour);
+      return price >= minPrice && price <= maxPrice;
+    });
+    cy.intercept('GET', `/api/venues*pricing_per_hour__gte=${minPrice}*pricing_per_hour__lte=${maxPrice}*`, {
       statusCode: 200,
-      body: { results: mockVenues.noResults, count: 0, next: null, previous: null },
+      body: { results: expectedResult, count: expectedResult.length, next: null, previous: null },
+    }).as('getVenuesByPrice');
+
+    cy.get('[data-cy="filter-min-price-input"]').clear().type(minPrice.toString());
+    // Wait for debounce and API call if inputs trigger individually
+    // For this test, assume combined effect or last action triggers the main call
+    cy.get('[data-cy="filter-max-price-input"]').clear().type(maxPrice.toString());
+    cy.wait('@getVenuesByPrice');
+
+    cy.get('[data-cy="venue-card"]').should('have.length', expectedResult.length);
+    cy.get('[data-cy="venue-card"]').each(($card) => {
+      cy.wrap($card).find('[data-cy="venue-price-per-hour"]').invoke('text').then(text => {
+        const price = parseFloat(text.replace('Price per hour: $', ''));
+        expect(price).to.be.gte(minPrice);
+        expect(price).to.be.lte(maxPrice);
+      });
+    });
+  });
+
+  it('should show "No venues match" for a search with no results', () => {
+    const searchTerm = 'XYZUnfindableVenue123';
+    cy.intercept('GET', `/api/venues*search=${encodeURIComponent(searchTerm)}*`, {
+      statusCode: 200,
+      body: { results: [], count: 0, next: null, previous: null },
     }).as('getNoResults');
 
-    cy.get('input[name="search"]').type('UnfindableVenueName123');
-    cy.contains('button', 'Apply Filters').click();
+    cy.get('[data-cy="search-input"]').clear().type(searchTerm);
     cy.wait('@getNoResults');
 
-    cy.get(venueCardSelector).should('not.exist');
-    cy.contains('No venues found matching your criteria.').should('be.visible');
+    cy.get('[data-cy="venue-card"]').should('not.exist');
+    cy.get('[data-cy="no-venues-message"]').should('be.visible');
   });
 
-  it('should clear filters and show all venues', () => {
-    // 1. Apply a filter first
-    cy.intercept('GET', '/api/venues/?search=Grand*', {
-      statusCode: 200,
-      body: { results: mockVenues.searchByName, count: mockVenues.searchByName.length, next: null, previous: null },
-    }).as('getFilteredForClearTest');
-    cy.get('input[name="search"]').type('Grand');
-    cy.get('select[name="is_available"]').select('true'); // Add another filter to check clearing
-    cy.contains('button', 'Apply Filters').click();
-    cy.wait('@getFilteredForClearTest'); // This intercept might need to be more specific if multiple filters are applied
+  it('should paginate to the next page', () => {
+    // For this test, we need to ensure the initial load mock allows pagination
+    const initialResponse = {
+        results: mockVenuesSeed.slice(0, 2), // Assume page size is 2 for this test
+        count: mockVenuesSeed.length,
+        next: '/api/venues?page=2', // Mock a next link
+        previous: null,
+    };
+    const page2Response = {
+        results: mockVenuesSeed.slice(2, 4),
+        count: mockVenuesSeed.length,
+        next: '/api/venues?page=3',
+        previous: '/api/venues?page=1',
+    };
 
-    // Check that filter took effect
-    cy.get(venueCardSelector).should('have.length', mockVenues.searchByName.length);
-    cy.contains(venueCardSelector, 'Grand Plaza Hall').should('be.visible');
+    // Override the generic beforeEach intercept for this specific test's initial load
+    cy.intercept('GET', '/api/venues*', initialResponse).as('getInitialPageForPagination');
+    cy.visit('/venues');
+    cy.wait('@getInitialPageForPagination');
 
-    // 2. Intercept for clearing filters (back to initial all venues state)
-    cy.intercept('GET', '/api/venues/?', { // This will be the call after clearing
-      statusCode: 200,
-      body: { results: mockVenues.all, count: mockVenues.all.length, next: null, previous: null },
-    }).as('getAllVenuesAfterClear');
+    cy.get('[data-cy="venue-card"]').should('have.length', 2);
+    cy.get('[data-cy="pagination-next-button"]').should('be.enabled').click();
 
-    cy.contains('button', 'Clear Filters').click();
-    cy.wait('@getAllVenuesAfterClear');
+    // Intercept the call for page 2
+    cy.intercept('GET', '/api/venues*page=2*', page2Response).as('getPage2');
+    cy.wait('@getPage2');
 
-    // Assert inputs are cleared
-    cy.get('input[name="search"]').should('have.value', '');
-    cy.get('select[name="is_available"]').should('have.value', ''); // Default is 'Any' which has value ''
-    cy.get('input[name="capacity"]').should('have.value', '');
-    cy.get('input[name="min_price_per_hour"]').should('have.value', '');
-    cy.get('input[name="max_price_per_hour"]').should('have.value', '');
-
-    // Assert all venues are displayed
-    cy.get(venueCardSelector).should('have.length', mockVenues.all.length);
-    mockVenues.all.forEach(venue => {
-      cy.contains(venueCardSelector, venue.name).should('be.visible');
-    });
+    cy.get('[data-cy="pagination-page-display"]').should('contain.text', 'Page 2');
+    cy.get('[data-cy="venue-card"]').should('have.length', 2); // Assuming 2 items on page 2
+    cy.get('[data-cy="venue-card"]').first().find('[data-cy="venue-name"]').should('contain.text', mockVenuesSeed[2].name);
+    cy.get('[data-cy="pagination-prev-button"]').should('be.enabled');
   });
+
+  // Test for clearing filters would require inputs to be cleared and a re-fetch.
+  // Since there's no explicit "Clear Filters" button, this means manually clearing each input.
+  // This can be complex to ensure it triggers a "show all" state without specific clear functionality.
+  // A simpler test would be to apply a filter, then change it to something else or an empty value.
+  it('should update results when a filter is cleared by user', () => {
+    const searchTerm = 'Grand Plaza';
+    const expectedResultSearch = mockVenuesSeed.filter(v => v.name.includes(searchTerm));
+    cy.intercept('GET', `/api/venues*search=${encodeURIComponent(searchTerm)}*`, {
+      body: { results: expectedResultSearch, count: expectedResultSearch.length },
+    }).as('getSearch');
+
+    cy.get('[data-cy="search-input"]').type(searchTerm);
+    cy.wait('@getSearch');
+    cy.get('[data-cy="venue-card"]').should('have.length', expectedResultSearch.length);
+
+    // Now clear the search input
+    // Intercept for when search is empty
+    cy.intercept('GET', '/api/venues*', (req) => {
+        if (!req.url.includes('search=') || req.url.includes('search=&') ) { // Simplistic check for empty search
+             req.reply({ body: { results: mockVenuesSeed, count: mockVenuesSeed.length } });
+        }
+    }).as('getAfterClearSearch');
+
+    cy.get('[data-cy="search-input"]').clear();
+    cy.wait('@getAfterClearSearch');
+    cy.get('[data-cy="venue-card"]').should('have.length', mockVenuesSeed.length);
+  });
+
 });
