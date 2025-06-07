@@ -1,0 +1,333 @@
+{
+  "stats": {
+    "suites": 2,
+    "tests": 5,
+    "passes": 1,
+    "pending": 0,
+    "failures": 4,
+    "start": "2025-06-06T20:09:32.236Z",
+    "end": "2025-06-06T20:09:54.003Z",
+    "duration": 21767,
+    "testsRegistered": 11,
+    "passPercent": 9.090909090909092,
+    "pendingPercent": 0,
+    "other": 0,
+    "hasOther": false,
+    "skipped": 6,
+    "hasSkipped": true
+  },
+  "results": [
+    {
+      "uuid": "8119fcc2-67e8-4d24-ab12-66ca9c4c56da",
+      "title": "",
+      "fullFile": "cypress/e2e/venues_list.cy.ts",
+      "file": "cypress/e2e/venues_list.cy.ts",
+      "beforeHooks": [],
+      "afterHooks": [],
+      "tests": [],
+      "suites": [
+        {
+          "uuid": "a4d9699e-f94c-44d4-b544-0e837cb29aa9",
+          "title": "Venues Listing Page",
+          "fullFile": "",
+          "file": "",
+          "beforeHooks": [],
+          "afterHooks": [],
+          "tests": [
+            {
+              "title": "should display the page title correctly",
+              "fullTitle": "Venues Listing Page should display the page title correctly",
+              "timedOut": null,
+              "duration": 6544,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "cy.visit('/venues');\ncy.screenshot('venues-page-load');\ncy.document().its('documentElement.outerHTML').then(function (html) {\n    cy.log(html);\n});\ncy.get('h1').contains('Available Venues'); // Or whatever the title element and text is",
+              "err": {
+                "message": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `h1`, but never found it.",
+                "estack": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `h1`, but never found it.\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venues_list.cy.ts:16:0)",
+                "diff": null
+              },
+              "uuid": "ce56a76e-8e73-4904-9328-46f43890bee9",
+              "parentUUID": "a4d9699e-f94c-44d4-b544-0e837cb29aa9",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "should display at least one venue card or a \"no venues found\" message",
+              "fullTitle": "Venues Listing Page should display at least one venue card or a \"no venues found\" message",
+              "timedOut": null,
+              "duration": 48,
+              "state": "passed",
+              "speed": "fast",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "// This test is flexible: it passes if venues are loaded OR if a \"no venues\" message is shown.\n// This avoids test failure if the backend has no data during the E2E test run.\n// For a more specific test, you'd ensure data exists or mock it.\ncy.get('body').then(function ($body) {\n    if ($body.find('[class*=\"VenueCard_\"]').length > 0) { // Check for class containing VenueCard (adapt selector)\n        cy.log('Venue cards found');\n        // Optionally, check for specific content within a card\n        // cy.get('[class*=\"VenueCard_\"]').first().should('contain.text', 'Venue Name'); // Example\n    }\n    else if ($body.find('p:contains(\"No venues found\")').length > 0) {\n        cy.log('No venues found message displayed');\n        cy.contains('No venues found').should('be.visible');\n    }\n    else if ($body.find(':contains(\"Loading venues...\")').length > 0) {\n        // If still loading after initial visit, wait a bit more\n        cy.contains('Loading venues...', { timeout: 10000 }).should('not.exist');\n        // Re-check after loading\n        if ($body.find('[class*=\"VenueCard_\"]').length > 0) {\n            cy.log('Venue cards found after loading');\n        }\n        else if ($body.find('p:contains(\"No venues found\")').length > 0) {\n            cy.log('No venues found message displayed after loading');\n            cy.contains('No venues found').should('be.visible');\n        }\n        else {\n            // If neither venues nor \"no venues\" message, it might be an issue or still loading\n            // This could be an assertion failure point if the app state is unexpected.\n            // For now, just log it. In a stricter test, you might fail here.\n            cy.log('Neither venues nor \"no venues\" message found after loading period.');\n        }\n    }\n    else {\n        // Fallback if none of the above states are immediately found\n        // This could indicate an error page or an unexpected state.\n        // Consider adding a cy.screenshot() here for debugging.\n        cy.log('Initial check found neither venue cards, \"no venues\" message, nor loading indicator.');\n        // Potentially fail the test if this state is not expected:\n        // throw new Error('Unexpected page state: No venues, no \"no venues\" message, and not loading.');\n    }\n});",
+              "err": {},
+              "uuid": "c1c1a781-bc44-4ad3-89c6-1fa321b6a628",
+              "parentUUID": "a4d9699e-f94c-44d4-b544-0e837cb29aa9",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "should have a link/button to \"Add New Venue\"",
+              "fullTitle": "Venues Listing Page should have a link/button to \"Add New Venue\"",
+              "timedOut": null,
+              "duration": 4753,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step\ncy.get('a[href=\"/venues/new\"]').contains('Add New Venue', { matchCase: false })\n    .should('be.visible');",
+              "err": {
+                "message": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `a[href=\"/venues/new\"]`, but never found it.",
+                "estack": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `a[href=\"/venues/new\"]`, but never found it.\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venues_list.cy.ts:62:0)",
+                "diff": null
+              },
+              "uuid": "bb3d3499-13e7-4d40-98ac-636d1cebed75",
+              "parentUUID": "a4d9699e-f94c-44d4-b544-0e837cb29aa9",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "should navigate to the \"Add New Venue\" page when the link is clicked",
+              "fullTitle": "Venues Listing Page should navigate to the \"Add New Venue\" page when the link is clicked",
+              "timedOut": null,
+              "duration": 4611,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step\ncy.get('a[href=\"/venues/new\"]').contains('Add New Venue', { matchCase: false }).click();\ncy.url().should('include', '/venues/new');\ncy.get('h1').contains('Add New Venue'); // Check for title on the new page",
+              "err": {
+                "message": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `a[href=\"/venues/new\"]`, but never found it.",
+                "estack": "AssertionError: Timed out retrying after 4000ms: Expected to find element: `a[href=\"/venues/new\"]`, but never found it.\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venues_list.cy.ts:67:0)",
+                "diff": null
+              },
+              "uuid": "98401135-89a2-4629-abf5-8e6ed980d57a",
+              "parentUUID": "a4d9699e-f94c-44d4-b544-0e837cb29aa9",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "c1c1a781-bc44-4ad3-89c6-1fa321b6a628"
+          ],
+          "failures": [
+            "ce56a76e-8e73-4904-9328-46f43890bee9",
+            "bb3d3499-13e7-4d40-98ac-636d1cebed75",
+            "98401135-89a2-4629-abf5-8e6ed980d57a"
+          ],
+          "pending": [],
+          "skipped": [],
+          "duration": 15956,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 2000
+        },
+        {
+          "uuid": "1067128f-b67e-4949-b579-622bd1764324",
+          "title": "Venues Listing Page - Filtering & Searching",
+          "fullFile": "",
+          "file": "",
+          "beforeHooks": [],
+          "afterHooks": [],
+          "tests": [
+            {
+              "title": "should filter venues by search term",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should filter venues by search term",
+              "timedOut": null,
+              "duration": 5463,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?search=Grand*', {\n    statusCode: 200,\n    body: { results: mockVenues.searchByName, count: mockVenues.searchByName.length, next: null, previous: null },\n}).as('getFilteredByName');\ncy.get('input[name=\"search\"]').type('Grand');\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getFilteredByName');\ncy.get(venueCardSelector).should('have.length', mockVenues.searchByName.length);\ncy.contains(venueCardSelector, 'Grand Plaza Hall').should('be.visible');\ncy.contains(venueCardSelector, 'Cozy Corner Room').should('not.exist');",
+              "err": {
+                "message": "CypressError: Timed out retrying after 5000ms: `cy.wait()` timed out waiting `5000ms` for the 1st request to the route: `getInitialVenues`. No request ever occurred.\n\nhttps://on.cypress.io/wait\n\nBecause this error occurred during a `before each` hook we are skipping the remaining tests in the current suite: `Venues Listing Page - Filte...`",
+                "estack": "CypressError: Timed out retrying after 5000ms: `cy.wait()` timed out waiting `5000ms` for the 1st request to the route: `getInitialVenues`. No request ever occurred.\n\nhttps://on.cypress.io/wait\n\nBecause this error occurred during a `before each` hook we are skipping the remaining tests in the current suite: `Venues Listing Page - Filte...`\n    at cypressErr (http://localhost:3000/__cypress/runner/cypress_runner.js:76065:18)\n    at Object.errByPath (http://localhost:3000/__cypress/runner/cypress_runner.js:76119:10)\n    at checkForXhr (http://localhost:3000/__cypress/runner/cypress_runner.js:135342:84)\n    at <unknown> (http://localhost:3000/__cypress/runner/cypress_runner.js:135368:28)\n    at tryCatcher (http://localhost:3000/__cypress/runner/cypress_runner.js:1830:23)\n    at Promise.attempt.Promise.try (http://localhost:3000/__cypress/runner/cypress_runner.js:4338:29)\n    at whenStable (http://localhost:3000/__cypress/runner/cypress_runner.js:143744:68)\n    at <unknown> (http://localhost:3000/__cypress/runner/cypress_runner.js:143685:14)\n    at tryCatcher (http://localhost:3000/__cypress/runner/cypress_runner.js:1830:23)\n    at Promise._settlePromiseFromHandler (http://localhost:3000/__cypress/runner/cypress_runner.js:1542:31)\n    at Promise._settlePromise (http://localhost:3000/__cypress/runner/cypress_runner.js:1599:18)\n    at Promise._settlePromise0 (http://localhost:3000/__cypress/runner/cypress_runner.js:1644:10)\n    at Promise._settlePromises (http://localhost:3000/__cypress/runner/cypress_runner.js:1724:18)\n    at Promise._fulfill (http://localhost:3000/__cypress/runner/cypress_runner.js:1668:18)\n    at <unknown> (http://localhost:3000/__cypress/runner/cypress_runner.js:5473:46)\nFrom Your Spec Code:\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venues_list.cy.ts:113:0)",
+                "diff": null
+              },
+              "uuid": "e466ab3b-db67-4784-a25e-917a65d8693e",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "should filter venues by availability (Yes)",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should filter venues by availability (Yes)",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?is_available=true', {\n    statusCode: 200,\n    body: { results: mockVenues.availableOnly, count: mockVenues.availableOnly.length, next: null, previous: null },\n}).as('getFilteredByAvailability');\ncy.get('select[name=\"is_available\"]').select('true'); // Value for \"Yes\"\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getFilteredByAvailability');\ncy.get(venueCardSelector).should('have.length', mockVenues.availableOnly.length);\nmockVenues.availableOnly.forEach(function (venue) {\n    cy.contains(venueCardSelector, venue.name).should('be.visible');\n});\ncy.contains(venueCardSelector, 'Cozy Corner Room').should('not.exist'); // This one is is_available: false",
+              "err": {},
+              "uuid": "4f6574c2-2db4-491a-82ea-6ed5de167bfa",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            },
+            {
+              "title": "should filter venues by minimum capacity",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should filter venues by minimum capacity",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?capacity=150', {\n    statusCode: 200,\n    body: { results: mockVenues.capacity150plus, count: mockVenues.capacity150plus.length, next: null, previous: null },\n}).as('getFilteredByCapacity');\ncy.get('input[name=\"capacity\"]').type('150');\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getFilteredByCapacity');\ncy.get(venueCardSelector).should('have.length', mockVenues.capacity150plus.length);\nmockVenues.capacity150plus.forEach(function (venue) {\n    cy.contains(venueCardSelector, venue.name).should('be.visible');\n});\ncy.contains(venueCardSelector, 'Riverside Pavilion').should('not.exist'); // Capacity 100",
+              "err": {},
+              "uuid": "fd5ca911-84ee-4165-b8ac-c0833d86590c",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            },
+            {
+              "title": "should filter venues by price range",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should filter venues by price range",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?min_price_per_hour=50&max_price_per_hour=100', {\n    statusCode: 200,\n    body: { results: mockVenues.priceRange50to100, count: mockVenues.priceRange50to100.length, next: null, previous: null },\n}).as('getFilteredByPrice');\ncy.get('input[name=\"min_price_per_hour\"]').type('50');\ncy.get('input[name=\"max_price_per_hour\"]').type('100');\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getFilteredByPrice');\ncy.get(venueCardSelector).should('have.length', mockVenues.priceRange50to100.length);\nif (mockVenues.priceRange50to100.length > 0) {\n    mockVenues.priceRange50to100.forEach(function (venue) {\n        cy.contains(venueCardSelector, venue.name).should('be.visible');\n    });\n}\nelse {\n    cy.contains('No venues found matching your criteria.').should('be.visible');\n}\ncy.contains(venueCardSelector, 'Grand Plaza Hall').should('not.exist'); // Price 150",
+              "err": {},
+              "uuid": "441a5c56-0ae8-430f-b303-66790a9c7d70",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            },
+            {
+              "title": "should filter by combined criteria (search term and availability)",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should filter by combined criteria (search term and availability)",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?search=Riverside&is_available=true', {\n    statusCode: 200,\n    body: { results: mockVenues.combinedSearchAndAvailable, count: mockVenues.combinedSearchAndAvailable.length, next: null, previous: null },\n}).as('getCombinedFilter');\ncy.get('input[name=\"search\"]').type('Riverside');\ncy.get('select[name=\"is_available\"]').select('true');\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getCombinedFilter');\ncy.get(venueCardSelector).should('have.length', mockVenues.combinedSearchAndAvailable.length);\nmockVenues.combinedSearchAndAvailable.forEach(function (venue) {\n    cy.contains(venueCardSelector, venue.name).should('be.visible');\n});\ncy.contains(venueCardSelector, 'Grand Plaza Hall').should('not.exist');",
+              "err": {},
+              "uuid": "c4eb0249-a98a-453c-859e-4bc972dc02e9",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            },
+            {
+              "title": "should display \"No venues found\" message when filters yield no results",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should display \"No venues found\" message when filters yield no results",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "cy.intercept('GET', '/api/venues/?search=UnfindableVenueName123', {\n    statusCode: 200,\n    body: { results: mockVenues.noResults, count: 0, next: null, previous: null },\n}).as('getNoResults');\ncy.get('input[name=\"search\"]').type('UnfindableVenueName123');\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getNoResults');\ncy.get(venueCardSelector).should('not.exist');\ncy.contains('No venues found matching your criteria.').should('be.visible');",
+              "err": {},
+              "uuid": "f6123940-ae7b-4744-b4cb-e46b09f76b55",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            },
+            {
+              "title": "should clear filters and show all venues",
+              "fullTitle": "Venues Listing Page - Filtering & Searching should clear filters and show all venues",
+              "timedOut": null,
+              "duration": 0,
+              "state": "skipped",
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "// 1. Apply a filter first\ncy.intercept('GET', '/api/venues/?search=Grand*', {\n    statusCode: 200,\n    body: { results: mockVenues.searchByName, count: mockVenues.searchByName.length, next: null, previous: null },\n}).as('getFilteredForClearTest');\ncy.get('input[name=\"search\"]').type('Grand');\ncy.get('select[name=\"is_available\"]').select('true'); // Add another filter to check clearing\ncy.contains('button', 'Apply Filters').click();\ncy.wait('@getFilteredForClearTest'); // This intercept might need to be more specific if multiple filters are applied\n// Check that filter took effect\ncy.get(venueCardSelector).should('have.length', mockVenues.searchByName.length);\ncy.contains(venueCardSelector, 'Grand Plaza Hall').should('be.visible');\n// 2. Intercept for clearing filters (back to initial all venues state)\ncy.intercept('GET', '/api/venues/?', {\n    statusCode: 200,\n    body: { results: mockVenues.all, count: mockVenues.all.length, next: null, previous: null },\n}).as('getAllVenuesAfterClear');\ncy.contains('button', 'Clear Filters').click();\ncy.wait('@getAllVenuesAfterClear');\n// Assert inputs are cleared\ncy.get('input[name=\"search\"]').should('have.value', '');\ncy.get('select[name=\"is_available\"]').should('have.value', ''); // Default is 'Any' which has value ''\ncy.get('input[name=\"capacity\"]').should('have.value', '');\ncy.get('input[name=\"min_price_per_hour\"]').should('have.value', '');\ncy.get('input[name=\"max_price_per_hour\"]').should('have.value', '');\n// Assert all venues are displayed\ncy.get(venueCardSelector).should('have.length', mockVenues.all.length);\nmockVenues.all.forEach(function (venue) {\n    cy.contains(venueCardSelector, venue.name).should('be.visible');\n});",
+              "err": {},
+              "uuid": "881c1b07-3d0b-4da9-ac57-d26587d1e83c",
+              "parentUUID": "1067128f-b67e-4949-b579-622bd1764324",
+              "isHook": false,
+              "skipped": true
+            }
+          ],
+          "suites": [],
+          "passes": [],
+          "failures": [
+            "e466ab3b-db67-4784-a25e-917a65d8693e"
+          ],
+          "pending": [],
+          "skipped": [
+            "4f6574c2-2db4-491a-82ea-6ed5de167bfa",
+            "fd5ca911-84ee-4165-b8ac-c0833d86590c",
+            "441a5c56-0ae8-430f-b303-66790a9c7d70",
+            "c4eb0249-a98a-453c-859e-4bc972dc02e9",
+            "f6123940-ae7b-4744-b4cb-e46b09f76b55",
+            "881c1b07-3d0b-4da9-ac57-d26587d1e83c"
+          ],
+          "duration": 5463,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 2000
+        }
+      ],
+      "passes": [],
+      "failures": [],
+      "pending": [],
+      "skipped": [],
+      "duration": 0,
+      "root": true,
+      "rootEmpty": true,
+      "_timeout": 2000
+    }
+  ],
+  "meta": {
+    "mocha": {
+      "version": "7.0.1"
+    },
+    "mochawesome": {
+      "options": {
+        "quiet": false,
+        "reportFilename": "mochawesome",
+        "saveHtml": false,
+        "saveJson": true,
+        "consoleReporter": "spec",
+        "useInlineDiffs": false,
+        "code": true
+      },
+      "version": "7.1.3"
+    },
+    "marge": {
+      "options": {
+        "reportDir": "cypress/results",
+        "overwrite": false,
+        "html": false,
+        "json": true
+      },
+      "version": "6.2.0"
+    }
+  }
+}
