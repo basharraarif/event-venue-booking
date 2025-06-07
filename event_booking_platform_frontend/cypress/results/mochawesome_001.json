@@ -1,0 +1,132 @@
+{
+  "stats": {
+    "suites": 1,
+    "tests": 2,
+    "passes": 0,
+    "pending": 0,
+    "failures": 2,
+    "start": "2025-06-06T20:07:14.740Z",
+    "end": "2025-06-06T20:07:26.512Z",
+    "duration": 11772,
+    "testsRegistered": 2,
+    "passPercent": 0,
+    "pendingPercent": 0,
+    "other": 0,
+    "hasOther": false,
+    "skipped": 0,
+    "hasSkipped": false
+  },
+  "results": [
+    {
+      "uuid": "44d0e680-b0cd-4cde-9eb8-80e3c965b383",
+      "title": "",
+      "fullFile": "cypress/e2e/venue_edit.cy.ts",
+      "file": "cypress/e2e/venue_edit.cy.ts",
+      "beforeHooks": [],
+      "afterHooks": [],
+      "tests": [],
+      "suites": [
+        {
+          "uuid": "2864e98e-182c-4ce9-9af6-1197d6770ff8",
+          "title": "Venue Edit Page Access",
+          "fullFile": "",
+          "file": "",
+          "beforeHooks": [],
+          "afterHooks": [],
+          "tests": [
+            {
+              "title": "should redirect unauthenticated users to the login page",
+              "fullTitle": "Venue Edit Page Access should redirect unauthenticated users to the login page",
+              "timedOut": null,
+              "duration": 5245,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "cy.visit(editUrl);\ncy.url().should('include', loginUrl);\n// Assuming your login page has a distinctive element, e.g., a heading\ncy.get('h1').contains('Login to Your Account').should('be.visible');",
+              "err": {
+                "message": "AssertionError: Timed out retrying after 4000ms: expected 'http://localhost:3000/venues/1/edit' to include '/login'",
+                "estack": "AssertionError: Timed out retrying after 4000ms: expected 'http://localhost:3000/venues/1/edit' to include '/login'\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venue_edit.cy.ts:20:0)",
+                "diff": null
+              },
+              "uuid": "c4b9eaf0-0d0e-4ae6-a726-5a7982c7124a",
+              "parentUUID": "2864e98e-182c-4ce9-9af6-1197d6770ff8",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "should allow authenticated users to access the edit page and see pre-filled form",
+              "fullTitle": "Venue Edit Page Access should allow authenticated users to access the edit page and see pre-filled form",
+              "timedOut": null,
+              "duration": 6294,
+              "state": "failed",
+              "speed": null,
+              "pass": false,
+              "fail": true,
+              "pending": false,
+              "context": null,
+              "code": "// Simulate login by setting auth token in localStorage\n// This token name ('authToken') must match what your AuthContext/withAuth HOC expects\nlocalStorage.setItem('authToken', 'fake-e2e-auth-token');\n// Mock the API call for fetching venue details for the form\ncy.intercept('GET', \"/api/venues/\".concat(venueId, \"/\"), {\n    statusCode: 200,\n    body: mockVenueData, // Ensure this matches the structure expected by VenueForm's initialData\n}).as('getVenueDetails');\ncy.visit(editUrl);\n// Wait for the API call to fetch venue details\ncy.wait('@getVenueDetails');\n// Check that the URL is the edit page URL\ncy.url().should('include', editUrl);\n// Check for a distinctive element on the edit page, e.g., the page title\n// The title is dynamic: \"Edit Venue: {venue.name}\"\ncy.get('h1').contains(\"Edit Venue: \".concat(mockVenueData.name)).should('be.visible');\n// Check if form fields are pre-filled with mock data\ncy.get('input[name=\"name\"]').should('have.value', mockVenueData.name);\ncy.get('input[name=\"address\"]').should('have.value', mockVenueData.address);\ncy.get('textarea[name=\"description\"]').should('have.value', mockVenueData.description);\ncy.get('input[name=\"capacity\"]').should('have.value', mockVenueData.capacity.toString());\ncy.get('input[name=\"pricing_per_hour\"]').should('have.value', mockVenueData.pricing_per_hour);\n// For amenities, it might be more complex (e.g., multi-select or tags)\n// For simplicity, we'll assume amenities are handled if the other fields are correct.\n// Depending on how is_available is rendered (checkbox, select), adjust the check:\n// Example for a checkbox:\n// if (mockVenueData.is_available) {\n//   cy.get('input[name=\"is_available\"]').should('be.checked');\n// } else {\n//   cy.get('input[name=\"is_available\"]').should('not.be.checked');\n// }\n// For this example, we'll assume the form is correctly loading if name/address/etc. are there.\ncy.get('button[type=\"submit\"]').contains('Update Venue').should('be.visible');",
+              "err": {
+                "message": "CypressError: `cy.visit()` failed trying to load:\n\nhttp://localhost:3000/venues/1/edit\n\nThe response we received from your web server was:\n\n  > 500: Internal Server Error\n\nThis was considered a failure because the status code was not `2xx`.\n\nIf you do not want status codes to cause failures pass the option: `failOnStatusCode: false`",
+                "estack": "CypressError: `cy.visit()` failed trying to load:\n\nhttp://localhost:3000/venues/1/edit\n\nThe response we received from your web server was:\n\n  > 500: Internal Server Error\n\nThis was considered a failure because the status code was not `2xx`.\n\nIf you do not want status codes to cause failures pass the option: `failOnStatusCode: false`\n    at <unknown> (http://localhost:3000/__cypress/runner/cypress_runner.js:131591:76)\n    at visitFailedByErr (http://localhost:3000/__cypress/runner/cypress_runner.js:131006:12)\n    at <unknown> (http://localhost:3000/__cypress/runner/cypress_runner.js:131574:13)\n    at tryCatcher (http://localhost:3000/__cypress/runner/cypress_runner.js:1830:23)\n    at Promise._settlePromiseFromHandler (http://localhost:3000/__cypress/runner/cypress_runner.js:1542:31)\n    at Promise._settlePromise (http://localhost:3000/__cypress/runner/cypress_runner.js:1599:18)\n    at Promise._settlePromise0 (http://localhost:3000/__cypress/runner/cypress_runner.js:1644:10)\n    at Promise._settlePromises (http://localhost:3000/__cypress/runner/cypress_runner.js:1720:18)\n    at _drainQueueStep (http://localhost:3000/__cypress/runner/cypress_runner.js:2430:12)\n    at _drainQueue (http://localhost:3000/__cypress/runner/cypress_runner.js:2423:9)\n    at Async._drainQueues (http://localhost:3000/__cypress/runner/cypress_runner.js:2439:5)\n    at Async.drainQueues (http://localhost:3000/__cypress/runner/cypress_runner.js:2309:14)\nFrom Your Spec Code:\n    at Context.eval (webpack://event_booking_platform_frontend/./cypress/e2e/venue_edit.cy.ts:33:0)",
+                "diff": null
+              },
+              "uuid": "ce75d72c-5389-4093-b861-3ca71fadea46",
+              "parentUUID": "2864e98e-182c-4ce9-9af6-1197d6770ff8",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [],
+          "failures": [
+            "c4b9eaf0-0d0e-4ae6-a726-5a7982c7124a",
+            "ce75d72c-5389-4093-b861-3ca71fadea46"
+          ],
+          "pending": [],
+          "skipped": [],
+          "duration": 11539,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 2000
+        }
+      ],
+      "passes": [],
+      "failures": [],
+      "pending": [],
+      "skipped": [],
+      "duration": 0,
+      "root": true,
+      "rootEmpty": true,
+      "_timeout": 2000
+    }
+  ],
+  "meta": {
+    "mocha": {
+      "version": "7.0.1"
+    },
+    "mochawesome": {
+      "options": {
+        "quiet": false,
+        "reportFilename": "mochawesome",
+        "saveHtml": false,
+        "saveJson": true,
+        "consoleReporter": "spec",
+        "useInlineDiffs": false,
+        "code": true
+      },
+      "version": "7.1.3"
+    },
+    "marge": {
+      "options": {
+        "reportDir": "cypress/results",
+        "overwrite": false,
+        "html": false,
+        "json": true
+      },
+      "version": "6.2.0"
+    }
+  }
+}

@@ -2,13 +2,17 @@ describe('Venues Listing Page', () => {
   beforeEach(() => {
     // Optional: Mock API responses if not running against a live dev server with data.
     // Example: cy.intercept('GET', '/api/venues/?*', { fixture: 'venues.json' }).as('getVenues');
-    cy.visit('/venues');
     // if (cy.contains('Loading venues...', {timeout: 7000})) { // Wait for loading to finish
     //   cy.contains('Loading venues...', {timeout: 7000}).should('not.exist');
     // }
   });
 
   it('should display the page title correctly', () => {
+    cy.visit('/venues');
+    cy.screenshot('venues-page-load');
+    cy.document().its('documentElement.outerHTML').then(html => {
+      cy.log(html);
+    });
     cy.get('h1').contains('Available Venues'); // Or whatever the title element and text is
   });
 
@@ -51,11 +55,13 @@ describe('Venues Listing Page', () => {
   });
 
   it('should have a link/button to "Add New Venue"', () => {
+    cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step
     cy.get('a[href="/venues/new"]').contains('Add New Venue', { matchCase: false })
       .should('be.visible');
   });
 
   it('should navigate to the "Add New Venue" page when the link is clicked', () => {
+    cy.visit('/venues'); // Visit moved from beforeEach to individual tests for clarity in this debug step
     cy.get('a[href="/venues/new"]').contains('Add New Venue', { matchCase: false }).click();
     cy.url().should('include', '/venues/new');
     cy.get('h1').contains('Add New Venue'); // Check for title on the new page
@@ -100,7 +106,10 @@ describe('Venues Listing Page - Filtering & Searching', () => {
       statusCode: 200,
       body: { results: mockVenues.all, count: mockVenues.all.length, next: null, previous: null },
     }).as('getInitialVenues');
-
+    // cy.visit('/venues') will be called in each test or a sub-beforeEach if needed for this block.
+    // This is to avoid conflict with the general beforeEach in the parent describe.
+    // For now, let's assume tests in this block will handle their own visit or this beforeEach will be refined.
+    // To ensure this beforeEach runs correctly for its tests:
     cy.visit('/venues');
     cy.wait('@getInitialVenues');
     cy.get('h1').contains('Available Venues').should('be.visible');

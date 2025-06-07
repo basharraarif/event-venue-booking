@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import environ
 import os
 from pathlib import Path
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -96,8 +97,6 @@ ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password'] # Specify required fie
 # Ensure 'email' and 'username' are required if that's the intent. Default is often just username.
 # Forcing email: ACCOUNT_SIGNUP_FIELDS = {'email': {'required': True}, 'username': {'required': True}, 'password': {'required': True}}
 # For simplicity, let's use the basic list for now. dj-rest-auth might have defaults too.
-ACCOUNT_USERNAME_REQUIRED = True # Explicitly set if username is always needed
-ACCOUNT_EMAIL_REQUIRED = True # Explicitly set if email is always needed for allauth forms
 
 # ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username' # Default
 # ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
@@ -138,8 +137,14 @@ WSGI_APPLICATION = 'event_booking_platform_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://user:password@host:port/name')
+    'default': env.db('DATABASE_URL', default='postgres://user:password@host:5432/name')
 }
+
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
 
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
