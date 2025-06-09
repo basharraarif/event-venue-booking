@@ -16,10 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+from core import views as core_views
+
+# Create a router and register our viewsets with it.
+router = DefaultRouter()
+router.register(r'users', core_views.UserViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include(router.urls)), # Include the router URLs
     # path('api/auth/', include('rest_framework.urls', namespace='rest_framework')), # Old DRF auth
     path('api/auth/', include('dj_rest_auth.urls')), # dj-rest-auth main URLs
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')), # dj-rest-auth registration

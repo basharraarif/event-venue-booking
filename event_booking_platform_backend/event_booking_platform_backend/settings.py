@@ -103,6 +103,8 @@ ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password'] # Specify required fie
 # ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
 # ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300 # 5 minutes
 
+AUTH_USER_MODEL = 'core.User' # Custom User model
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -137,14 +139,17 @@ WSGI_APPLICATION = 'event_booking_platform_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://user:password@host:5432/name')
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
-if 'test' in sys.argv:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-    }
+# if 'test' in sys.argv: # Keep test db as in-memory sqlite
+#     DATABASES['default'] = {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': ':memory:',
+#     }
 
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
