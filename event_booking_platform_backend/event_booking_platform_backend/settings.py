@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'django_filters',
     'core',
     'venues',
+    'events',
 
     # Authentication apps
     'rest_framework.authtoken',
