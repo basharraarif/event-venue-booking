@@ -25,7 +25,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone_number', 'address']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone_number', 'address', 'roles']
+        read_only_fields = ['roles'] # Make roles read-only for now via this serializer
         extra_kwargs = {
             'email': {'required': True, 'help_text': "Required. A valid email address."},
             'username': {'help_text': "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."},

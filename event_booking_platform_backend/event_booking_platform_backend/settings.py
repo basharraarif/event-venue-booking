@@ -32,12 +32,22 @@ env = environ.Env(
 #     settings.py
 # you might need to adjust the path: Path(BASE_DIR).parent / '.env'
 # If your .env is in the same directory as manage.py (i.e., project root)
-ENV_PATH = BASE_DIR / ".env"
+ENV_PATH = BASE_DIR / ".env" # This is /app/event_booking_platform_backend/.env
+# Attempt to read .env file from the project root /app/.env as well for dockerized environments
+PROJECT_ROOT_ENV_PATH = BASE_DIR.parent / ".env"
+
 if ENV_PATH.exists():
     environ.Env.read_env(str(ENV_PATH))
+elif PROJECT_ROOT_ENV_PATH.exists():
+    environ.Env.read_env(str(PROJECT_ROOT_ENV_PATH))
 else:
     # Silently proceed if .env not found, relying on direct env vars or defaults
     pass
+
+# Stripe API Keys
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="your_stripe_publishable_key_here_default")
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="your_stripe_secret_key_here_default")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="your_stripe_webhook_secret_here_default")
 
 
 # Quick-start development settings - unsuitable for production
@@ -78,6 +88,7 @@ INSTALLED_APPS = [
     "venues",
     "events",
     "bookings",
+    "payments", # Payments app
     # Authentication apps
     "rest_framework.authtoken",
     "dj_rest_auth",
@@ -129,7 +140,7 @@ ROOT_URLCONF = "event_booking_platform_backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"], # Add project-level templates directory
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -177,7 +188,18 @@ CACHES = {
 
 # Email Configuration for Development
 # https://docs.djangoproject.com/en/dev/topics/email/#console-backend
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend" # Default for dev
+
+# PRODUCTION EMAIL CONFIGURATION (Example using django-environ, to be uncommented and configured in production)
+# EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+# EMAIL_HOST = env('EMAIL_HOST', default='localhost')
+# EMAIL_PORT = env.int('EMAIL_PORT', default=25) # Use env.int for integer values
+# EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+# EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+# EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False) # Use env.bool for boolean values
+# EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False) # Mutually exclusive with EMAIL_USE_TLS
+# DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
+# SERVER_EMAIL = env('SERVER_EMAIL', default='root@localhost') # For error notifications
 
 
 REST_FRAMEWORK = {

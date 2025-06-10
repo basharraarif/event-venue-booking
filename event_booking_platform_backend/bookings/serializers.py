@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Booking # User is not in bookings.models
+from django.db import models # Import models for Sum
+from .models import Booking
 from events.models import Event
 from django.contrib.auth import get_user_model # For User model reference
 from core.serializers import UserSerializer
@@ -45,13 +46,15 @@ class BookingSerializer(serializers.ModelSerializer):
             'user',              # Read: User ID (set automatically on create, read-only for input)
             'user_details',      # Read: Nested User object
             'number_of_tickets',
+            'price_per_ticket_at_booking', # Read-only, set by model logic
+            'total_price',       # Read-only, calculated by model logic
             'booking_time',      # Read-only
             'status',
-            'total_price'        # Read-only
         ]
         read_only_fields = [
             'booking_time',
             'total_price',
+            'price_per_ticket_at_booking',
             'user' # User is set by perform_create in the ViewSet, not taken from request payload directly.
         ]
         extra_kwargs = {
@@ -82,4 +85,31 @@ class BookingSerializer(serializers.ModelSerializer):
         # On create, 'event' must be present. PrimaryKeyRelatedField handles this.
         # If 'event' is not in data and self.instance is None (create), it's an issue,
         # but DRF's field validation for required 'event' field should catch it first.
+
+        # Capacity Check
+        # This check is particularly important for create and when number_of_tickets is updated.
+        requested_tickets = data.get('number_of_tickets')
+
+        if event and requested_tickets is not None: # Only if event and tickets are part of validation data
+            venue_capacity = event.venue.capacity
+
+            # Sum of tickets for existing 'confirmed' or 'pending' bookings for this event.
+            # Exclude the current booking if it's an update by checking self.instance.
+            current_booked_tickets = Booking.objects.filter(
+                event=event,
+                status__in=[Booking.BookingStatus.CONFIRMED, Booking.BookingStatus.PENDING]
+            ).exclude(pk=getattr(self.instance, 'pk', None)).aggregate(
+                total_tickets=models.Sum('number_of_tickets')
+            )['total_tickets'] or 0
+
+            if current_booked_tickets + requested_tickets > venue_capacity:
+                # Concurrency Note: This check is valuable but not entirely race-condition-proof
+                # without database-level locking (e.g., SELECT FOR UPDATE) if high concurrency
+                # for booking the same event is expected. For many systems, this application-level
+                # check provides a good balance of safety and simplicity.
+                available_tickets = venue_capacity - current_booked_tickets
+                raise serializers.ValidationError(
+                    {'number_of_tickets':
+                     f"Not enough tickets available. Only {available_tickets} ticket(s) remaining for event '{event.name}' (Venue capacity: {venue_capacity})."}
+                )
         return data
