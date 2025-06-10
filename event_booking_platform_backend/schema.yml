@@ -1,0 +1,1960 @@
+openapi: 3.0.3
+info:
+  title: Event Booking Platform API
+  version: 1.0.0
+  description: API for managing venues, events, and bookings for the Event Booking
+    SaaS Platform.
+paths:
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: |-
+        Check the credentials and return the REST Token
+        if the credentials are valid and authenticated.
+        Calls Django Auth login method to register User ID
+        in Django session framework
+
+        Accept the following POST parameters: username, password
+        Return the REST Framework Token Object's key.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+          description: ''
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: |-
+        Calls Django logout method and delete the Token object
+        assigned to the current User object.
+
+        Accepts/Returns nothing.
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/password/change/:
+    post:
+      operationId: auth_password_change_create
+      description: |-
+        Calls Django Auth SetPasswordForm save method.
+
+        Accepts the following POST parameters: new_password1, new_password2
+        Returns the success/fail message.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/password/reset/:
+    post:
+      operationId: auth_password_reset_create
+      description: |-
+        Calls Django Auth PasswordResetForm save method.
+
+        Accepts the following POST parameters: email
+        Returns the success/fail message.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/password/reset/confirm/:
+    post:
+      operationId: auth_password_reset_confirm_create
+      description: |-
+        Password reset e-mail link is confirmed, therefore
+        this resets the user's password.
+
+        Accepts the following POST parameters: token, uid,
+            new_password1, new_password2
+        Returns the success/fail message.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/registration/:
+    post:
+      operationId: auth_registration_create
+      description: |-
+        Registers a new user.
+
+        Accepts the following POST parameters: username, email, password1, password2.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+          description: ''
+  /api/auth/registration/resend-email/:
+    post:
+      operationId: auth_registration_resend_email_create
+      description: |-
+        Resends another email to an unverified email.
+
+        Accepts the following POST parameter: email.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendEmailVerification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResendEmailVerification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResendEmailVerification'
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/registration/verify-email/:
+    post:
+      operationId: auth_registration_verify_email_create
+      description: |-
+        Verifies the email associated with the provided key.
+
+        Accepts the following POST parameter: key.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+        required: true
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestAuthDetail'
+          description: ''
+  /api/auth/user/:
+    get:
+      operationId: auth_user_retrieve
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - auth
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetails'
+          description: ''
+    put:
+      operationId: auth_user_update
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDetails'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserDetails'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserDetails'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetails'
+          description: ''
+    patch:
+      operationId: auth_user_partial_update
+      description: |-
+        Reads and updates UserModel fields
+        Accepts GET, PUT, PATCH methods.
+
+        Default accepted fields: username, first_name, last_name
+        Default display fields: pk, username, email, first_name, last_name
+        Read-only fields: pk, email
+
+        Returns UserModel fields.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserDetails'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserDetails'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserDetails'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetails'
+          description: ''
+  /api/bookings/bookings/:
+    get:
+      operationId: bookings_bookings_list
+      description: "Retrieves a list of bookings.\n        - Regular users will see\
+        \ only their own bookings.\n        - Admin users will see all bookings.\n\
+        \        \n        **Filtering Options (query parameters):**\n        - `event`:\
+        \ Filter by event ID (e.g., `?event=1`).\n        - `user`: (Admins only)\
+        \ Filter by user ID (e.g., `?user=2`).\n        - `status`: Filter by booking\
+        \ status. Choices: `pending`, `confirmed`, `cancelled` (e.g., `?status=confirmed`).\n\
+        \        "
+      summary: List bookings
+      parameters:
+      - in: query
+        name: event
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - confirmed
+          - pending
+        description: |-
+          * `confirmed` - Confirmed
+          * `cancelled` - Cancelled
+          * `pending` - Pending
+      - in: query
+        name: user
+        schema:
+          type: integer
+      tags:
+      - bookings
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+          description: ''
+    post:
+      operationId: bookings_bookings_create
+      description: Creates a new booking for an event. The 'user' field is automatically
+        set to the currently authenticated user. The 'total_price' is calculated based
+        on the event's ticket price and number of tickets.
+      summary: Create a new booking
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Booking'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+  /api/bookings/bookings/{id}/:
+    get:
+      operationId: bookings_bookings_retrieve
+      description: Retrieves details of a specific booking. Regular users can only
+        retrieve their own bookings. Admins can retrieve any booking.
+      summary: Retrieve a booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this booking.
+        required: true
+      tags:
+      - bookings
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+    put:
+      operationId: bookings_bookings_update
+      description: Updates all fields for an existing booking. Regular users can only
+        update their own bookings. Admins can update any booking. Some fields like
+        'event' might be restricted from update after creation depending on business
+        logic (not enforced by default).
+      summary: Update a booking (full)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this booking.
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Booking'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+    patch:
+      operationId: bookings_bookings_partial_update
+      description: Partially updates an existing booking. Only the fields provided
+        in the request will be updated. Regular users can only update their own bookings.
+        Admins can update any booking.
+      summary: Partially update a booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this booking.
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBooking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBooking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBooking'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+    delete:
+      operationId: bookings_bookings_destroy
+      description: Deletes an existing booking. Regular users can only delete their
+        own bookings (potentially restricted by status, e.g., cannot delete 'confirmed'
+        bookings - not enforced by default). Admins can delete any booking.
+      summary: Delete a booking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this booking.
+        required: true
+      tags:
+      - bookings
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/events-management/categories/:
+    get:
+      operationId: events_management_categories_list
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: List all event categories
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+          description: ''
+    post:
+      operationId: events_management_categories_create
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: Create a new event category
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/events-management/categories/{id}/:
+    get:
+      operationId: events_management_categories_retrieve
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: Retrieve an event category
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    put:
+      operationId: events_management_categories_update
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: Update an event category (full)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    patch:
+      operationId: events_management_categories_partial_update
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: Partially update an event category
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: events_management_categories_destroy
+      description: |-
+        API endpoint for managing event categories.
+        Provides CRUD operations for categories like 'Music', 'Sports', 'Conference', etc.
+      summary: Delete an event category
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/events-management/events/:
+    get:
+      operationId: events_management_events_list
+      description: "Retrieves a list of all events.\n        \n        **Filtering\
+        \ Options (query parameters):**\n        - `name`: Filter by event name (partial\
+        \ match, case-insensitive, e.g., `?name=Tech`).\n        - `venue`: Filter\
+        \ by venue ID (e.g., `?venue=1`).\n        - `organizer`: Filter by organizer\
+        \ (user) ID (e.g., `?organizer=2`).\n        - `status`: Filter by event status.\
+        \ Choices: `upcoming`, `ongoing`, `past`, `cancelled` (e.g., `?status=upcoming`).\n\
+        \        - `category_name`: Filter by the exact name of one category associated\
+        \ with the event (e.g., `?category_name=Music`).\n        - `start_time_after`:\
+        \ Filter for events starting on or after a given datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS\
+        \ format, e.g., `?start_time_after=2024-01-01`).\n        - `start_time_before`:\
+        \ Filter for events starting on or before a given datetime (YYYY-MM-DD or\
+        \ YYYY-MM-DDTHH:MM:SS format, e.g., `?start_time_before=2024-12-31`).\n  \
+        \      "
+      summary: List all events
+      parameters:
+      - in: query
+        name: category_name
+        schema:
+          type: string
+      - in: query
+        name: name
+        schema:
+          type: string
+      - in: query
+        name: organizer
+        schema:
+          type: integer
+      - in: query
+        name: start_time_after
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: start_time_before
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - ongoing
+          - past
+          - upcoming
+        description: |-
+          * `upcoming` - Upcoming
+          * `ongoing` - Ongoing
+          * `past` - Past
+          * `cancelled` - Cancelled
+      - in: query
+        name: venue
+        schema:
+          type: integer
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+          description: ''
+    post:
+      operationId: events_management_events_create
+      description: |-
+        API endpoint for managing events.
+        Provides CRUD operations and supports filtering.
+        The `ticket_price` for the event is defined here.
+      summary: Create a new event
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+  /api/events-management/events/{id}/:
+    get:
+      operationId: events_management_events_retrieve
+      description: |-
+        API endpoint for managing events.
+        Provides CRUD operations and supports filtering.
+        The `ticket_price` for the event is defined here.
+      summary: Retrieve an event
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    put:
+      operationId: events_management_events_update
+      description: |-
+        API endpoint for managing events.
+        Provides CRUD operations and supports filtering.
+        The `ticket_price` for the event is defined here.
+      summary: Update an event (full)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    patch:
+      operationId: events_management_events_partial_update
+      description: |-
+        API endpoint for managing events.
+        Provides CRUD operations and supports filtering.
+        The `ticket_price` for the event is defined here.
+      summary: Partially update an event
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - events-management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    delete:
+      operationId: events_management_events_destroy
+      description: |-
+        API endpoint for managing events.
+        Provides CRUD operations and supports filtering.
+        The `ticket_price` for the event is defined here.
+      summary: Delete an event
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - events-management
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/:
+    get:
+      operationId: users_list
+      description: Retrieves a list of all user accounts. Access may be restricted
+        based on user permissions (e.g., admins see all, regular users might see a
+        limited set or only themselves depending on configuration not yet implemented
+        here).
+      summary: List all users
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - users
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+    post:
+      operationId: users_create
+      description: Creates a new user account. Requires username, email, and password.
+        Additional fields like phone number and address are optional.
+      summary: Create a new user
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/{id}/:
+    get:
+      operationId: users_retrieve
+      description: Retrieves the details of a specific user by their ID.
+      summary: Retrieve a user
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - users
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: users_update
+      description: Updates all fields for an existing user. All fields must be provided.
+      summary: Update a user (full)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: users_partial_update
+      description: Partially updates an existing user. Only the fields provided in
+        the request will be updated.
+      summary: Partially update a user
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    delete:
+      operationId: users_destroy
+      description: Deletes an existing user account. This action is typically restricted
+        to administrators.
+      summary: Delete a user
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - users
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/venues/:
+    get:
+      operationId: venues_list
+      description: "Retrieves a list of all available venues.\n        \n        **Filtering\
+        \ Options:**\n        - `name`: Filter by venue name (partial match, case-insensitive).\n\
+        \        - `address`: Filter by venue address (partial match, case-insensitive).\n\
+        \        - `min_capacity`: Filter by minimum guest capacity (e.g., `?min_capacity=100`).\n\
+        \        - `max_capacity`: Filter by maximum guest capacity (e.g., `?max_capacity=500`).\n\
+        \        - `has_parking`: Filter by availability of parking (boolean: `true`\
+        \ or `false`).\n        - `has_public_transport`: Filter by availability of\
+        \ public transport access (boolean: `true` or `false`).\n        \n      \
+        \  **Search Fields:** (Use the `search` query parameter)\n        - `name`:\
+        \ Search within venue names.\n        - `address`: Search within venue addresses.\n\
+        \        - `amenities`: Search within venue amenities description (if amenities\
+        \ is a text field).\n        "
+      summary: List all venues
+      parameters:
+      - in: query
+        name: address_contains
+        schema:
+          type: string
+      - in: query
+        name: capacity
+        schema:
+          type: integer
+      - in: query
+        name: is_available
+        schema:
+          type: boolean
+      - in: query
+        name: max_price_per_day
+        schema:
+          type: number
+      - in: query
+        name: max_price_per_hour
+        schema:
+          type: number
+      - in: query
+        name: min_price_per_day
+        schema:
+          type: number
+      - in: query
+        name: min_price_per_hour
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - venues
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Venue'
+          description: ''
+    post:
+      operationId: venues_create
+      description: Creates a new venue. All fields as defined in the serializer are
+        available.
+      summary: Create a new venue
+      tags:
+      - venues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Venue'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Venue'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Venue'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+          description: ''
+  /api/venues/{id}/:
+    get:
+      operationId: venues_retrieve
+      description: Retrieves the details of a specific venue by its ID.
+      summary: Retrieve a venue
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Venue.
+        required: true
+      tags:
+      - venues
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+          description: ''
+    put:
+      operationId: venues_update
+      description: Updates all fields for an existing venue. All fields must be provided.
+      summary: Update a venue (full)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Venue.
+        required: true
+      tags:
+      - venues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Venue'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Venue'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Venue'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+          description: ''
+    patch:
+      operationId: venues_partial_update
+      description: Partially updates an existing venue. Only the fields provided in
+        the request will be updated.
+      summary: Partially update a venue
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Venue.
+        required: true
+      tags:
+      - venues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedVenue'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedVenue'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedVenue'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+          description: ''
+    delete:
+      operationId: venues_destroy
+      description: Deletes an existing venue. This action is typically restricted.
+      summary: Delete a venue
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Venue.
+        required: true
+      tags:
+      - venues
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          description: ID of the event to book. Required for creating a booking.
+        event_details:
+          allOf:
+          - $ref: '#/components/schemas/NestedEvent'
+          readOnly: true
+          description: Read-only. Key details of the event being booked.
+        user:
+          type: integer
+          readOnly: true
+        user_details:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+          description: Read-only. Detailed information about the user who made the
+            booking.
+        number_of_tickets:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Number of tickets to book for the event. Must be a positive
+            integer.
+        booking_time:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookingStatusEnum'
+          description: |-
+            Status of the booking. Choices: 'pending', 'confirmed', 'cancelled'. Defaults to 'pending'.
+
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `pending` - Pending
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - booking_time
+      - event
+      - event_details
+      - id
+      - total_price
+      - user
+      - user_details
+    BookingStatusEnum:
+      enum:
+      - confirmed
+      - cancelled
+      - pending
+      type: string
+      description: |-
+        * `confirmed` - Confirmed
+        * `cancelled` - Cancelled
+        * `pending` - Pending
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of the event category (e.g., 'Music', 'Sports'). Must
+            be unique.
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          description: Optional. A brief description of the category.
+      required:
+      - id
+      - name
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of the event.
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          description: Optional. Detailed description of the event.
+        venue:
+          type: integer
+          description: ID of the venue where the event will take place. This is required.
+        venue_name:
+          type: string
+          readOnly: true
+          description: Name of the venue where the event is held (Read-only).
+        organizer:
+          type: integer
+          description: ID of the user organizing the event. This is required.
+        organizer_username:
+          type: string
+          readOnly: true
+          description: Username of the user who organized the event (Read-only).
+        categories:
+          type: array
+          items:
+            type: string
+          description: List of category names associated with the event. For writing,
+            provide a list of existing category names (e.g., ["Music", "Conference"]).
+        start_time:
+          type: string
+          format: date-time
+          description: Event start date and time (YYYY-MM-DDTHH:MM:SS format).
+        end_time:
+          type: string
+          format: date-time
+          description: Event end date and time (YYYY-MM-DDTHH:MM:SS format). Must
+            be after start_time.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/EventStatusEnum'
+          description: |-
+            Current status of the event. Choices: 'upcoming', 'ongoing', 'past', 'cancelled'. Defaults to 'upcoming'.
+
+            * `upcoming` - Upcoming
+            * `ongoing` - Ongoing
+            * `past` - Past
+            * `cancelled` - Cancelled
+        ticket_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Price per ticket for the event. Use '0.00' for free events.
+            (e.g., '25.50').
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - categories
+      - created_at
+      - end_time
+      - id
+      - name
+      - organizer
+      - organizer_username
+      - start_time
+      - updated_at
+      - venue
+      - venue_name
+    EventStatusEnum:
+      enum:
+      - upcoming
+      - ongoing
+      - past
+      - cancelled
+      type: string
+      description: |-
+        * `upcoming` - Upcoming
+        * `ongoing` - Ongoing
+        * `past` - Past
+        * `cancelled` - Cancelled
+    Login:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+      - password
+    NestedEvent:
+      type: object
+      description: |-
+        A simplified serializer for nested event representation within bookings.
+        Provides key event details without excessive nesting.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        start_time:
+          type: string
+          format: date-time
+        ticket_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+      required:
+      - id
+      - name
+      - start_time
+    PasswordChange:
+      type: object
+      properties:
+        new_password1:
+          type: string
+          maxLength: 128
+        new_password2:
+          type: string
+          maxLength: 128
+      required:
+      - new_password1
+      - new_password2
+    PasswordReset:
+      type: object
+      description: Serializer for requesting a password reset e-mail.
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    PasswordResetConfirm:
+      type: object
+      description: Serializer for confirming a password reset attempt.
+      properties:
+        new_password1:
+          type: string
+          maxLength: 128
+        new_password2:
+          type: string
+          maxLength: 128
+        uid:
+          type: string
+        token:
+          type: string
+      required:
+      - new_password1
+      - new_password2
+      - token
+      - uid
+    PatchedBooking:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          description: ID of the event to book. Required for creating a booking.
+        event_details:
+          allOf:
+          - $ref: '#/components/schemas/NestedEvent'
+          readOnly: true
+          description: Read-only. Key details of the event being booked.
+        user:
+          type: integer
+          readOnly: true
+        user_details:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+          description: Read-only. Detailed information about the user who made the
+            booking.
+        number_of_tickets:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Number of tickets to book for the event. Must be a positive
+            integer.
+        booking_time:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookingStatusEnum'
+          description: |-
+            Status of the booking. Choices: 'pending', 'confirmed', 'cancelled'. Defaults to 'pending'.
+
+            * `confirmed` - Confirmed
+            * `cancelled` - Cancelled
+            * `pending` - Pending
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+    PatchedCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of the event category (e.g., 'Music', 'Sports'). Must
+            be unique.
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          description: Optional. A brief description of the category.
+    PatchedEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of the event.
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          description: Optional. Detailed description of the event.
+        venue:
+          type: integer
+          description: ID of the venue where the event will take place. This is required.
+        venue_name:
+          type: string
+          readOnly: true
+          description: Name of the venue where the event is held (Read-only).
+        organizer:
+          type: integer
+          description: ID of the user organizing the event. This is required.
+        organizer_username:
+          type: string
+          readOnly: true
+          description: Username of the user who organized the event (Read-only).
+        categories:
+          type: array
+          items:
+            type: string
+          description: List of category names associated with the event. For writing,
+            provide a list of existing category names (e.g., ["Music", "Conference"]).
+        start_time:
+          type: string
+          format: date-time
+          description: Event start date and time (YYYY-MM-DDTHH:MM:SS format).
+        end_time:
+          type: string
+          format: date-time
+          description: Event end date and time (YYYY-MM-DDTHH:MM:SS format). Must
+            be after start_time.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/EventStatusEnum'
+          description: |-
+            Current status of the event. Choices: 'upcoming', 'ongoing', 'past', 'cancelled'. Defaults to 'upcoming'.
+
+            * `upcoming` - Upcoming
+            * `ongoing` - Ongoing
+            * `past` - Past
+            * `cancelled` - Cancelled
+        ticket_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Price per ticket for the event. Use '0.00' for free events.
+            (e.g., '25.50').
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          description: Required. A valid email address.
+          maxLength: 254
+        first_name:
+          type: string
+          description: Optional.
+          maxLength: 150
+        last_name:
+          type: string
+          description: Optional.
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          description: User's password. Required for creation. Will be hashed automatically.
+        phone_number:
+          type: string
+          nullable: true
+          description: Optional. User's phone number, e.g., '+12125552368'.
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          description: Optional. User's full address.
+    PatchedUserDetails:
+      type: object
+      description: User model w/o password
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+          title: ID
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+    PatchedVenue:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: The official name of the venue.
+          maxLength: 255
+        address:
+          type: string
+          description: The full street address of the venue.
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          description: Maximum guest capacity of the venue. Must be a positive integer.
+        amenities:
+          description: Description of available amenities (e.g., 'Wi-Fi, Projector,
+            Catering services'). Can be a comma-separated list or a descriptive text.
+        pricing_per_hour:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        pricing_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        is_available:
+          type: boolean
+          description: Indicates if the venue is currently available for booking.
+            Defaults to True.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    Register:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 150
+          minLength: 1
+        email:
+          type: string
+          format: email
+        password1:
+          type: string
+          writeOnly: true
+        password2:
+          type: string
+          writeOnly: true
+      required:
+      - password1
+      - password2
+    ResendEmailVerification:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+    RestAuthDetail:
+      type: object
+      properties:
+        detail:
+          type: string
+          readOnly: true
+      required:
+      - detail
+    Token:
+      type: object
+      description: Serializer for Token model.
+      properties:
+        key:
+          type: string
+          maxLength: 40
+      required:
+      - key
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          description: Required. A valid email address.
+          maxLength: 254
+        first_name:
+          type: string
+          description: Optional.
+          maxLength: 150
+        last_name:
+          type: string
+          description: Optional.
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          description: User's password. Required for creation. Will be hashed automatically.
+        phone_number:
+          type: string
+          nullable: true
+          description: Optional. User's phone number, e.g., '+12125552368'.
+          maxLength: 20
+        address:
+          type: string
+          nullable: true
+          description: Optional. User's full address.
+      required:
+      - email
+      - id
+      - username
+    UserDetails:
+      type: object
+      description: User model w/o password
+      properties:
+        pk:
+          type: integer
+          readOnly: true
+          title: ID
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+      required:
+      - email
+      - pk
+      - username
+    Venue:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: The official name of the venue.
+          maxLength: 255
+        address:
+          type: string
+          description: The full street address of the venue.
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          description: Maximum guest capacity of the venue. Must be a positive integer.
+        amenities:
+          description: Description of available amenities (e.g., 'Wi-Fi, Projector,
+            Catering services'). Can be a comma-separated list or a descriptive text.
+        pricing_per_hour:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        pricing_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        is_available:
+          type: boolean
+          description: Indicates if the venue is currently available for booking.
+            Defaults to True.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - address
+      - capacity
+      - created_at
+      - id
+      - name
+      - updated_at
+    VerifyEmail:
+      type: object
+      properties:
+        key:
+          type: string
+          writeOnly: true
+      required:
+      - key
+  securitySchemes:
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"
