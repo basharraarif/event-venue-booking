@@ -5,12 +5,12 @@ from drf_spectacular.utils import extend_schema_view, extend_schema
 
 @extend_schema_view(
     list=extend_schema(
-        summary="List all users",
-        description="Retrieves a list of all user accounts. Access may be restricted based on user permissions (e.g., admins see all, regular users might see a limited set or only themselves depending on configuration not yet implemented here)."
+        summary="List all users (Authentication Required)",
+        description="Retrieves a list of all user accounts. Requires authentication. Access to specific user details beyond one's own may be further restricted by object-level permissions (not yet fully implemented here, e.g. admin sees all, user sees self)."
     ),
     retrieve=extend_schema(
-        summary="Retrieve a user",
-        description="Retrieves the details of a specific user by their ID."
+        summary="Retrieve a user (Authentication Required)",
+        description="Retrieves the details of a specific user by their ID. Requires authentication. Users might only be able to retrieve their own profiles unless they are administrators."
     ),
     create=extend_schema(
         summary="Create a new user",
@@ -33,13 +33,15 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing user accounts.
     Provides CRUD operations for users, including custom fields like phone number and address.
-    Permissions: Default DRF permissions are applied (e.g., `DjangoModelPermissionsOrAnonReadOnly` or as configured globally).
-    Specific object-level permissions (e.g., users can only edit themselves) would typically be added via `permission_classes`.
+
+    **Permissions:**
+    - All actions require authentication (`IsAuthenticated`).
+    - Further object-level permissions (e.g., users can only edit themselves, admins can edit anyone)
+      would typically be handled by adding another permission class like `IsOwnerOrAdmin` (not implemented in this ViewSet yet).
     """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
-    # Example: Add more specific permissions if needed
-    # permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdminOrReadOnly] # Custom permission
+    permission_classes = [permissions.IsAuthenticated] # Ensures only authenticated users can access
 
     # To have these docstrings picked up if methods are not explicitly defined,
     # drf-spectacular often relies on the @extend_schema_view decorator as shown above.
