@@ -14,19 +14,42 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path, include
-from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+from rest_framework.routers import DefaultRouter
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+from core import views as core_views
+
+# Create a router and register our viewsets with it.
+router = DefaultRouter()
+router.register(r"users", core_views.UserViewSet)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),  # Include the router URLs
     # path('api/auth/', include('rest_framework.urls', namespace='rest_framework')), # Old DRF auth
-    path('api/auth/', include('dj_rest_auth.urls')), # dj-rest-auth main URLs
-    path('api/auth/registration/', include('dj_rest_auth.registration.urls')), # dj-rest-auth registration
-    path('api/venues/', include('venues.urls')), # Venue URLs
-
+    path("api/auth/", include("dj_rest_auth.urls")),  # dj-rest-auth main URLs
+    path(
+        "api/auth/registration/", include("dj_rest_auth.registration.urls")
+    ),  # dj-rest-auth registration
+    path("api/venues/", include("venues.urls")),  # Venue URLs
+    path("api/events-management/", include("events.urls")),  # Event and Category URLs
+    path("api/bookings/", include("bookings.urls")),  # Booking URLs
     # API Schema & Docs
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger-ui/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/schema/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
 ]

@@ -11,9 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import environ
-import os
+# import os # Unused
 from pathlib import Path
-import sys
+# import sys # Unused
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,7 +32,7 @@ env = environ.Env(
 #     settings.py
 # you might need to adjust the path: Path(BASE_DIR).parent / '.env'
 # If your .env is in the same directory as manage.py (i.e., project root)
-ENV_PATH = BASE_DIR / '.env'
+ENV_PATH = BASE_DIR / ".env"
 if ENV_PATH.exists():
     environ.Env.read_env(str(ENV_PATH))
 else:
@@ -44,58 +44,66 @@ else:
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY', default='your-default-secret-key-if-not-in-env')
+# This is the primary source for SECRET_KEY, loaded from environment variables or a default.
+SECRET_KEY = env(
+    "SECRET_KEY",
+    default="your-default-secret-key-if-not-in-env- मेक-sure-this-is-very-secret-for-prod",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG')
+# DEBUG is True if the DEBUG environment variable is set to 'True', otherwise False.
+DEBUG = env("DEBUG", default=False)
 
+# Remove or comment out the redundant hardcoded SECRET_KEY and DEBUG settings below
+# SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak' # Redundant
+# DEBUG = True # Redundant, use env('DEBUG', default=False)
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list(
+    "ALLOWED_HOSTS", default=[]
+)  # Load from env, default to empty list
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'django_filters',
-    'core',
-    'venues',
-
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "django_filters",
+    "core",
+    "venues",
+    "events",
+    "bookings",
     # Authentication apps
-    'rest_framework.authtoken',
-    'dj_rest_auth',
-    'dj_rest_auth.registration',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount', # Optional, but good to have for future
-    'drf_spectacular', # API Documentation
+    "rest_framework.authtoken",
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",  # Optional, but good to have for future
+    "drf_spectacular",  # API Documentation
 ]
 
-SITE_ID = 1 # Required by django-allauth
+SITE_ID = 1  # Required by django-allauth
 
 # Django Allauth specific settings (optional, but recommended for dj_rest_auth.registration)
-ACCOUNT_EMAIL_VERIFICATION = 'none' # Can be 'optional' or 'mandatory' for development
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Can be 'optional' or 'mandatory' for development
 # ACCOUNT_AUTHENTICATION_METHOD = 'username_email' # Deprecated
-ACCOUNT_LOGIN_METHODS = ['username', 'email'] # New setting
+ACCOUNT_LOGIN_METHODS = ["username", "email"]  # New setting
 # ACCOUNT_EMAIL_REQUIRED = True # Deprecated
-ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password'] # Specify required fields for signup
+# Specify required fields for signup
+ACCOUNT_SIGNUP_FIELDS = [
+    "email",
+    "username",
+    "password",
+]
 # Ensure 'email' and 'username' are required if that's the intent. Default is often just username.
-# Forcing email: ACCOUNT_SIGNUP_FIELDS = {'email': {'required': True}, 'username': {'required': True}, 'password': {'required': True}}
+# Example for forcing email with more specific requirements:
+# ACCOUNT_SIGNUP_FIELDS = {'email': {'required': True}, 'username': {'required': True}, 'password': {'required': True}}
 # For simplicity, let's use the basic list for now. dj-rest-auth might have defaults too.
 
 # ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username' # Default
@@ -103,80 +111,99 @@ ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password'] # Specify required fie
 # ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
 # ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300 # 5 minutes
 
+AUTH_USER_MODEL = "core.User"  # Custom User model
+
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware', # Django Allauth middleware
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # Django Allauth middleware
 ]
 
-ROOT_URLCONF = 'event_booking_platform_backend.urls'
+ROOT_URLCONF = "event_booking_platform_backend.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'event_booking_platform_backend.wsgi.application'
+WSGI_APPLICATION = "event_booking_platform_backend.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Defaulting to SQLite for development simplicity.
+# For production, PostgreSQL is recommended. Example using django-environ:
+# DATABASES = {'default': env.db('DATABASE_URL', default='postgres://user:pass@host:port/dbname')}
+# Ensure the appropriate adapter (e.g., psycopg2-binary or psycopg2) is installed for PostgreSQL.
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgres://user:password@host:5432/name')
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
 }
 
-if 'test' in sys.argv:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-    }
+# if 'test' in sys.argv: # Keep test db as in-memory sqlite
+#     DATABASES['default'] = {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': ':memory:',
+#     }
 
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
 CACHES = {
-    'default': env.cache('REDIS_URL', default='redis://localhost:6379/1')
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",  # Optional, for in-memory cache, helps isolate if multiple processes
+    }
+    # To use Redis (ensure 'django-redis' is installed via pip):
+    # 'default': env.cache('REDIS_URL', default='redis://localhost:6379/1')
+    # Example REDIS_URL in .env: REDIS_URL=redis://user:password@hostname:port/database_number
 }
+
+# Email Configuration for Development
+# https://docs.djangoproject.com/en/dev/topics/email/#console-backend
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly"
     ],
-    'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend',
-        'rest_framework.filters.SearchFilter',
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
     ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
     ],
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Event Booking Platform API',
-    'DESCRIPTION': 'API for managing venues, events, and bookings for the Event Booking SaaS Platform.',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,  # Set to True to view schema in Swagger UI/Redoc
-    'SWAGGER_UI_DIST': 'SIDECAR',  # Use a CDN for Swagger UI files
-    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
-    'REDOC_DIST': 'SIDECAR', # Use a CDN for Redoc files
+    "TITLE": "Event Booking Platform API",
+    "DESCRIPTION": "API for managing venues, events, and bookings for the Event Booking SaaS Platform.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,  # Set to True to view schema in Swagger UI/Redoc
+    "SWAGGER_UI_DIST": "SIDECAR",  # Use a CDN for Swagger UI files
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",  # Use a CDN for Redoc files
     # Add more settings as needed:
     # 'COMPONENT_SPLIT_REQUEST': True,
     # 'SORT_OPERATION_PARAMETERS': False,
@@ -184,9 +211,9 @@ SPECTACULAR_SETTINGS = {
 
 AUTHENTICATION_BACKENDS = (
     # Needed to login by username in Django admin, regardless of `allauth`
-    'django.contrib.auth.backends.ModelBackend',
+    "django.contrib.auth.backends.ModelBackend",
     # `allauth` specific authentication methods, such as login by e-mail
-    'allauth.account.auth_backends.AuthenticationBackend',
+    "allauth.account.auth_backends.AuthenticationBackend",
 )
 
 
@@ -195,16 +222,16 @@ AUTHENTICATION_BACKENDS = (
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -212,9 +239,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -224,9 +251,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
