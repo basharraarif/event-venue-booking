@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     'core',
     'venues',
     'events',
+    'bookings',
 
     # Authentication apps
     'rest_framework.authtoken',
