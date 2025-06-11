@@ -1,5 +1,10 @@
 from rest_framework import viewsets, permissions
 from django_filters.rest_framework import DjangoFilterBackend
+from core.permissions import ( # Import custom permissions
+    IsAdminOrReadOnly,
+    IsOrganizerOrAdmin,
+    IsOrganizerOwnerOrAdminForObject
+)
 from .models import Event, Category
 from .serializers import EventSerializer, CategorySerializer
 from .filters import EventFilterSet
@@ -51,9 +56,25 @@ class EventViewSet(viewsets.ModelViewSet):
     """
     queryset = Event.objects.all().order_by('-start_time')
     serializer_class = EventSerializer
-    permission_classes = [permissions.DjangoModelPermissionsOrAnonReadOnly]
-    filter_backends = [DjangoFilterBackend] # DjangoObjectPermissions was removed in a previous step.
+    # permission_classes = [permissions.DjangoModelPermissionsOrAnonReadOnly] # To be replaced
+    filter_backends = [DjangoFilterBackend]
     filterset_class = EventFilterSet
+
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'create':
+            self.permission_classes = [IsOrganizerOrAdmin]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsOrganizerOwnerOrAdminForObject]
+        elif self.action in ['list', 'retrieve']:
+            # Allow read access for any authenticated user or anonymous (if desired)
+            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+        else:
+            # Default to deny access if action not explicitly handled, or use a restrictive default
+            self.permission_classes = [permissions.IsAdminUser]
+        return [permission() for permission in self.permission_classes]
 
     # If search functionality is desired (distinct from filtering):
     # search_fields = ['name', 'description', 'venue__name', 'categories__name']

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Link from 'next/link';
-import "./globals.css"; // Make sure this path is correct
-import { AuthProvider } from '../contexts/AuthContext'; // Import AuthProvider
-import AuthNav from '../components/layout/AuthNav'; // Import AuthNav
+import "./globals.css";
+import { AuthProvider, useAuth } from '../contexts/AuthContext'; // Import AuthProvider and useAuth
+import AuthNav from '../components/layout/AuthNav';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,6 +27,39 @@ export const metadata: Metadata = {
   // themeColor: '#ffffff', // Example theme color
 };
 
+// Define a client component for the header to use useAuth hook
+const AppHeader = () => {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <header className="bg-white shadow-md dark:bg-gray-800">
+      <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+        <Link href="/" className="text-xl font-semibold text-gray-700 dark:text-white">
+          EventPlatformBD
+        </Link>
+        <div className="flex items-center space-x-2 md:space-x-4">
+          <Link href="/" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">
+            Home
+          </Link>
+          <Link href="/venues" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">
+            Venues
+          </Link>
+          <Link href="/events" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">
+            Events
+          </Link>
+          {isAuthenticated && (
+            <Link href="/dashboard" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">
+              Dashboard
+            </Link>
+          )}
+          {/* Future links: e.g., My Bookings, Profile */}
+          <AuthNav /> {/* Auth links (Login/Register or User/Logout) */}
+        </div>
+      </nav>
+    </header>
+  );
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,32 +67,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-100 flex flex-col min-h-screen`}>
+      <body className={`${inter.className} bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col min-h-screen`}>
         <AuthProvider>
-          <header className="bg-white shadow-md">
-            <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-              <Link href="/" className="text-xl font-semibold text-gray-700">
-                EventPlatformBD
-              </Link>
-              <div className="flex items-center space-x-4">
-                <Link href="/" className="text-gray-700 hover:text-blue-600 px-3 py-2">
-                  Home
-                </Link>
-                <Link href="/venues" className="text-gray-700 hover:text-blue-600 px-3 py-2">
-                  Venues
-                </Link>
-                {/* Future links: e.g., My Bookings, Profile */}
-                <AuthNav /> {/* Auth links (Login/Register or User/Logout) */}
-              </div>
-            </nav>
-          </header>
-
+          <AppHeader /> {/* Use the client component header */}
           <main className="flex-grow container mx-auto px-4 py-8">
             {children}
           </main>
-
-          <footer className="bg-white shadow-md py-6 text-center mt-auto">
-            <p className="text-gray-600 text-sm">
+          <footer className="bg-white dark:bg-gray-800 shadow-md py-6 text-center mt-auto">
+            <p className="text-gray-600 dark:text-gray-300 text-sm">
               &copy; {new Date().getFullYear()} Event Booking Platform BD. All rights reserved.
             </p>
           </footer>

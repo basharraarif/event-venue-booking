@@ -74,8 +74,18 @@ describe('VenueList Component', () => {
       search: '',
       capacity: '',
       availability: '',
-      minPrice: '',
-      maxPrice: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
     });
   });
 
@@ -194,8 +204,10 @@ describe('VenueList Component', () => {
       search: '',
       capacity: '',
       availability: '',
-      minPrice: '50', // minPrice should persist
-      maxPrice: '200',
+      minPricePerHour: '50',
+      maxPricePerHour: '200',
+      minPricePerDay: '',
+      maxPricePerDay: '',
     });
     expect(screen.getByText('Page 1')).toBeInTheDocument();
   });
@@ -218,8 +230,14 @@ describe('VenueList Component', () => {
       search: '',
       capacity: '',
       availability: '',
-      minPrice: '',
-      maxPrice: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
     });
     // Assuming the component updates to show "Page 2"
     // This requires the mock to return appropriate next/prev for page 2 as well if we want to test further
@@ -296,4 +314,61 @@ describe('VenueList Component', () => {
       expect(link.closest('a')).toHaveAttribute('href', '/venues/create');
     });
   });
+
+  test('calls getVenues with price per day filters and resets to page 1', async () => {
+    render(<VenueList />);
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(1)); // Initial fetch
+
+    const minPriceDayInput = screen.getByLabelText(/min. price \(\$\/day\)/i);
+    await userEvent.type(minPriceDayInput, '300');
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(2));
+    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({ minPricePerDay: '300' }));
+
+    const maxPriceDayInput = screen.getByLabelText(/max. price \(\$\/day\)/i);
+    await userEvent.type(maxPriceDayInput, '1000');
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(3));
+    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({
+        minPricePerDay: '300',
+        maxPricePerDay: '1000'
+    }));
+    expect(screen.getByText('Page 1')).toBeInTheDocument();
+  });
+
+  test('clear filters button resets all filters and fetches with default params on page 1', async () => {
+    render(<VenueList />);
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(1)); // Initial fetch
+
+    // Apply some filters
+    const searchInput = screen.getByLabelText(/search/i);
+    await userEvent.type(searchInput, 'Test Search');
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(2)); // Debounced fetch for search
+
+    const capacityInput = screen.getByLabelText(/min. capacity/i);
+    await userEvent.type(capacityInput, '100');
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(3)); // Debounced fetch for capacity
+
+    // Check if filters were applied
+    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({
+        search: 'Test Search',
+        capacity: '100'
+    }));
+
+    // Click clear filters
+    const clearButton = screen.getByRole('button', { name: /clear filters/i });
+    await userEvent.click(clearButton);
+
+    // Should fetch again with initial (empty) filters and on page 1
+    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(4));
+    expect(mockGetVenues).toHaveBeenLastCalledWith(1, {
+      search: '',
+      capacity: '',
+      availability: '',
+      minPricePerHour: '',
+      maxPricePerHour: '',
+      minPricePerDay: '',
+      maxPricePerDay: '',
+    });
+    expect(screen.getByText('Page 1')).toBeInTheDocument(); // Stays on page 1 or resets to it
+  });
+
 });

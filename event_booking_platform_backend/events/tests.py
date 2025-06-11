@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from datetime import timedelta
+from decimal import Decimal # Import Decimal
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
@@ -143,30 +144,39 @@ class BaseViewSetTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         self.admin_user = User.objects.create_superuser('admin_events', 'adminevents@example.com', 'adminpass')
-        self.regular_user = User.objects.create_user('user_events', 'userevents@example.com', 'userpass')
-        self.venue1 = Venue.objects.create(name='Venue One', address='Addr 1', capacity=100)
-        self.venue2 = Venue.objects.create(name='Venue Two', address='Addr 2', capacity=200)
+        # Create users with specific roles
+        self.organizer_user = User.objects.create_user('organizer_user', 'organizer@example.com', 'orgpass', roles=User.Roles.ORGANIZER)
+        self.customer_user = User.objects.create_user('customer_user', 'customer@example.com', 'custpass', roles=User.Roles.CUSTOMER)
+
+        # Assign owner to venue for consistency if Venue model requires it (it does now)
+        self.venue_owner = User.objects.create_user('venue_owner_for_events', 'vo_events@example.com', 'vopass')
+        self.venue1 = Venue.objects.create(name='Venue One', address='Addr 1', capacity=100, owner=self.venue_owner)
+        self.venue2 = Venue.objects.create(name='Venue Two', address='Addr 2', capacity=200, owner=self.venue_owner)
         self.cat_music = Category.objects.create(name='Music Test')
         self.cat_sports = Category.objects.create(name='Sports Test')
 
         self.now = timezone.now()
-        self.event1 = Event.objects.create(
-            name='Music Event Alpha', venue=self.venue1, organizer=self.regular_user,
-            start_time=self.now + timedelta(days=10), end_time=self.now + timedelta(days=11), status='upcoming'
+        # Event organized by the organizer_user
+        self.event_by_organizer = Event.objects.create(
+            name='Event by Organizer', venue=self.venue1, organizer=self.organizer_user,
+            start_time=self.now + timedelta(days=10), end_time=self.now + timedelta(days=11), status='upcoming', ticket_price=Decimal("50.00")
         )
-        self.event1.categories.add(self.cat_music)
+        self.event_by_organizer.categories.add(self.cat_music)
 
-        self.event2 = Event.objects.create(
-            name='Sports Event Beta', venue=self.venue2, organizer=self.admin_user,
-            start_time=self.now + timedelta(days=20), end_time=self.now + timedelta(days=21), status='upcoming'
+        # Event organized by admin_user
+        self.event_by_admin = Event.objects.create(
+            name='Event by Admin', venue=self.venue2, organizer=self.admin_user,
+            start_time=self.now + timedelta(days=20), end_time=self.now + timedelta(days=21), status='upcoming', ticket_price=Decimal("60.00")
         )
-        self.event2.categories.add(self.cat_sports)
+        self.event_by_admin.categories.add(self.cat_sports)
 
+        # Another event for list count checks
         self.event3 = Event.objects.create(
-            name='Music Festival Gamma', venue=self.venue1, organizer=self.admin_user,
-            start_time=self.now + timedelta(days=5), end_time=self.now + timedelta(days=6), status='ongoing'
+            name='Music Festival Gamma', venue=self.venue1, organizer=self.admin_user, # Keep organizer as admin for simplicity here
+            start_time=self.now + timedelta(days=5), end_time=self.now + timedelta(days=6), status='ongoing', ticket_price=Decimal("70.00")
         )
         self.event3.categories.add(self.cat_music, self.cat_sports)
+
 
 
 class CategoryViewSetTests(BaseViewSetTests):
@@ -176,7 +186,7 @@ class CategoryViewSetTests(BaseViewSetTests):
         self.assertEqual(len(response.data), 2) # cat_music, cat_sports
 
     def test_retrieve_category_authenticated(self):
-        self.client.force_authenticate(user=self.regular_user)
+        self.client.force_authenticate(user=self.customer_user) # Any authenticated user can retrieve
         response = self.client.get(reverse('category-detail', kwargs={'pk': self.cat_music.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['name'], self.cat_music.name)
@@ -189,13 +199,12 @@ class CategoryViewSetTests(BaseViewSetTests):
         self.assertEqual(Category.objects.count(), 3)
 
     def test_create_category_non_admin_forbidden(self):
-        self.client.force_authenticate(user=self.regular_user)
+        self.client.force_authenticate(user=self.customer_user) # Customer cannot create categories
         data = {'name': 'Forbidden Category'}
         response = self.client.post(reverse('category-list'), data)
-        # DjangoModelPermissionsOrAnonReadOnly means user needs 'add_category' permission
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_update_category_admin(self):
+    def test_update_category_admin(self): # Admin can update
         self.client.force_authenticate(user=self.admin_user)
         data = {'description': 'Updated music description'}
         response = self.client.patch(reverse('category-detail', kwargs={'pk': self.cat_music.pk}), data)
@@ -214,59 +223,92 @@ class EventViewSetTests(BaseViewSetTests):
     def test_list_events_unauthenticated(self):
         response = self.client.get(reverse('event-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3) # event1, event2, event3
+        self.assertEqual(len(response.data), 3)
 
     def test_retrieve_event_authenticated(self):
-        self.client.force_authenticate(user=self.regular_user)
-        response = self.client.get(reverse('event-detail', kwargs={'pk': self.event1.pk}))
+        self.client.force_authenticate(user=self.customer_user) # Any authenticated user can retrieve
+        response = self.client.get(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['name'], self.event1.name)
+        self.assertEqual(response.data['name'], self.event_by_organizer.name)
 
-    def test_create_event_admin(self):
-        self.client.force_authenticate(user=self.admin_user)
+    def test_create_event_as_organizer(self):
+        self.client.force_authenticate(user=self.organizer_user)
         data = {
-            'name': 'Admin Created Event',
-            'venue': self.venue1.id,
-            'organizer': self.admin_user.id,
-            'categories': [self.cat_music.name],
-            'start_time': (self.now + timedelta(days=1)).isoformat(),
-            'end_time': (self.now + timedelta(days=2)).isoformat(),
-            'status': 'upcoming'
+            'name': 'Organizer Created Event', 'venue': self.venue1.id, 'organizer': self.organizer_user.id,
+            'categories': [self.cat_music.name], 'start_time': (self.now + timedelta(days=1)).isoformat(),
+            'end_time': (self.now + timedelta(days=2)).isoformat(), 'status': 'upcoming', 'ticket_price': Decimal("30.00")
         }
         response = self.client.post(reverse('event-list'), data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Event.objects.count(), 4)
+        self.assertEqual(Event.objects.count(), 4) # 3 initial + 1 new
 
-    def test_create_event_regular_user_with_permission(self):
-        # This test assumes regular_user might be granted 'add_event' permission.
-        # For now, let's assume they don't have it by default.
-        self.client.force_authenticate(user=self.regular_user)
+    def test_create_event_as_customer_forbidden(self):
+        self.client.force_authenticate(user=self.customer_user)
         data = {
-            'name': 'User Created Event', 'venue': self.venue1.id, 'organizer': self.regular_user.id,
+            'name': 'Customer Created Event', 'venue': self.venue1.id, 'organizer': self.customer_user.id,
             'categories': [self.cat_music.name], 'start_time': (self.now + timedelta(days=3)).isoformat(),
-            'end_time': (self.now + timedelta(days=4)).isoformat(), 'status': 'upcoming'
+            'end_time': (self.now + timedelta(days=4)).isoformat(), 'status': 'upcoming', 'ticket_price': Decimal("30.00")
         }
         response = self.client.post(reverse('event-list'), data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN) # Expect forbidden
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    # Filtering Tests
+    def test_update_own_event_as_organizer(self):
+        self.client.force_authenticate(user=self.organizer_user)
+        data = {'description': 'Updated by organizer owner'}
+        response = self.client.patch(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}), data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.event_by_organizer.refresh_from_db()
+        self.assertEqual(self.event_by_organizer.description, 'Updated by organizer owner')
+
+    def test_update_other_event_as_organizer_forbidden(self):
+        # self.event_by_admin is organized by admin_user
+        self.client.force_authenticate(user=self.organizer_user)
+        data = {'description': 'Attempt to update other event'}
+        response = self.client.patch(reverse('event-detail', kwargs={'pk': self.event_by_admin.pk}), data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_event_as_admin(self):
+        self.client.force_authenticate(user=self.admin_user)
+        data = {'description': 'Updated by admin'}
+        response = self.client.patch(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}), data) # Admin updates organizer's event
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.event_by_organizer.refresh_from_db()
+        self.assertEqual(self.event_by_organizer.description, 'Updated by admin')
+
+    def test_delete_own_event_as_organizer(self):
+        self.client.force_authenticate(user=self.organizer_user)
+        response = self.client.delete(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Event.objects.count(), 2) # 3 initial - 1 deleted
+
+    def test_delete_other_event_as_organizer_forbidden(self):
+        self.client.force_authenticate(user=self.organizer_user)
+        response = self.client.delete(reverse('event-detail', kwargs={'pk': self.event_by_admin.pk}))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_event_as_customer_forbidden(self):
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.delete(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # Filtering Tests (copied and adapted, ensure they still make sense with new events)
     def test_filter_event_by_name(self):
-        response = self.client.get(reverse('event-list') + '?name=Alpha')
+        response = self.client.get(reverse('event-list') + '?name=Organizer') # Event by Organizer
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.event1.name)
+        self.assertEqual(response.data[0]['name'], self.event_by_organizer.name)
 
     def test_filter_event_by_venue_id(self):
         response = self.client.get(reverse('event-list') + f'?venue={self.venue2.id}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.event2.name)
+        self.assertEqual(response.data[0]['name'], self.event_by_admin.name)
 
     def test_filter_event_by_organizer_id(self):
-        response = self.client.get(reverse('event-list') + f'?organizer={self.regular_user.id}')
+        response = self.client.get(reverse('event-list') + f'?organizer={self.organizer_user.id}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.event1.name)
+        self.assertEqual(response.data[0]['name'], self.event_by_organizer.name)
 
     def test_filter_event_by_status(self):
         response = self.client.get(reverse('event-list') + '?status=ongoing')
@@ -277,49 +319,58 @@ class EventViewSetTests(BaseViewSetTests):
     def test_filter_event_by_category_name(self):
         response = self.client.get(reverse('event-list') + f'?category_name={self.cat_sports.name}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # event2, event3
+        self.assertEqual(len(response.data), 2)
         names = {item['name'] for item in response.data}
-        self.assertIn(self.event2.name, names)
+        self.assertIn(self.event_by_admin.name, names)
         self.assertIn(self.event3.name, names)
 
     def test_filter_event_start_time_after(self):
-        # Events starting on or after 15 days from now (event2)
-        date_filter_val = (self.now + timedelta(days=15)).strftime('%Y-%m-%d')
+        date_filter_val = (self.now + timedelta(days=15)).strftime('%Y-%m-%d') # event_by_admin
         response = self.client.get(reverse('event-list') + f'?start_time_after={date_filter_val}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.event2.name)
+        self.assertEqual(response.data[0]['name'], self.event_by_admin.name)
 
     def test_filter_event_start_time_before(self):
-        # Events starting on or before 15 days from now (event1, event3)
-        date_filter_val = (self.now + timedelta(days=15)).strftime('%Y-%m-%d')
+        date_filter_val = (self.now + timedelta(days=15)).strftime('%Y-%m-%d') # event_by_organizer, event3
         response = self.client.get(reverse('event-list') + f'?start_time_before={date_filter_val}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
         names = {item['name'] for item in response.data}
-        self.assertIn(self.event1.name, names)
+        self.assertIn(self.event_by_organizer.name, names)
         self.assertIn(self.event3.name, names)
 
-    def test_update_event_organizer_or_admin(self):
-        # Test if organizer (regular_user) can update their own event (event1)
-        self.client.force_authenticate(user=self.regular_user)
-        data = {'description': 'Updated by organizer'}
-        # This will fail with 403 if regular_user doesn't have 'change_event' permission
-        # For this test to pass with 200, user needs explicit 'change_event' or object-level permission.
-        # Default DjangoModelPermissionsOrAnonReadOnly + no explicit perm = 403.
-        response = self.client.patch(reverse('event-detail', kwargs={'pk': self.event1.pk}), data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    def test_filter_event_combined_filters(self):
+        # Filter by status 'upcoming' and a category_name that matches event_by_organizer
+        response = self.client.get(reverse('event-list') + f'?status=upcoming&category_name={self.cat_music.name}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only event_by_organizer should match:
+        # event_by_organizer: upcoming, cat_music
+        # event_by_admin: upcoming, cat_sports
+        # event3: ongoing, cat_music, cat_sports
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.event_by_organizer.name)
 
-        # Test admin can update any event
-        self.client.force_authenticate(user=self.admin_user)
-        admin_data = {'description': 'Updated by admin'}
-        response_admin = self.client.patch(reverse('event-detail', kwargs={'pk': self.event1.pk}), admin_data)
-        self.assertEqual(response_admin.status_code, status.HTTP_200_OK)
-        self.event1.refresh_from_db()
-        self.assertEqual(self.event1.description, 'Updated by admin')
+    def test_filter_event_no_results(self):
+        response = self.client.get(reverse('event-list') + '?name=NonExistentEventNameXYZ')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
-    def test_delete_event_admin(self):
+    # Note on Pagination:
+    # If DEFAULT_PAGINATION_CLASS is set (e.g., PageNumberPagination), list responses
+    # will be nested like {'count': X, 'next': ..., 'previous': ..., 'results': [...]}.
+    # The current tests often assume response.data is a list directly.
+    # For paginated responses, assertions would need to be on response.data['results']
+    # and potentially check 'count', 'next'/'previous' links.
+    # Example for paginated check (if pagination was active):
+    # self.assertEqual(len(response.data['results']), 1)
+    # self.assertEqual(response.data['results'][0]['name'], self.event_by_organizer.name)
+
+    # test_update_event_organizer_or_admin is now split into more specific tests above
+    # Old test_delete_event_admin is covered by admin's ability to delete any event (implicitly tested if not specifically denied)
+    # or can be specific:
+    def test_admin_can_delete_any_event(self):
         self.client.force_authenticate(user=self.admin_user)
-        response = self.client.delete(reverse('event-detail', kwargs={'pk': self.event1.pk}))
+        response = self.client.delete(reverse('event-detail', kwargs={'pk': self.event_by_organizer.pk}))
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Event.objects.count(), 2)
+        self.assertFalse(Event.objects.filter(pk=self.event_by_organizer.pk).exists())

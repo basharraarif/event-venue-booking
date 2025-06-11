@@ -1,4 +1,9 @@
-from rest_framework import viewsets, filters # Import filters
+from rest_framework import viewsets, filters, permissions # Import permissions
+from core.permissions import ( # Import custom permissions
+    IsAdminOrReadOnly,
+    IsVenueManagerOrAdmin,
+    IsVenueManagerOwnerOrAdminForObject
+)
 from .models import Venue
 from .serializers import VenueSerializer
 from .filters import VenueFilter # Import VenueFilter
@@ -58,6 +63,18 @@ class VenueViewSet(viewsets.ModelViewSet):
     # These fields will be used by it.
     search_fields = ['name', 'address', 'amenities']
 
-    # Basic permissioning can be added later if needed, e.g.:
-    # from rest_framework import permissions
-    # permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    # permission_classes = [permissions.IsAuthenticatedOrReadOnly] # To be replaced
+
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'create':
+            self.permission_classes = [IsVenueManagerOrAdmin]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsVenueManagerOwnerOrAdminForObject]
+        elif self.action in ['list', 'retrieve']:
+            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+        else:
+            self.permission_classes = [permissions.IsAdminUser]
+        return [permission() for permission in self.permission_classes]

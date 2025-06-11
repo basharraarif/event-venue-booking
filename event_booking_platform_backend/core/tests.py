@@ -21,7 +21,25 @@ class UserModelTests(APITestCase):
         self.assertTrue(user.check_password('password123'))
         self.assertEqual(user.phone_number, '1234567890')
         self.assertEqual(user.address, '123 Test St')
+        self.assertEqual(user.roles, User.Roles.CUSTOMER) # Check default role
+        self.assertTrue(user.is_customer)
         self.assertEqual(str(user), 'testuser')
+
+    def test_user_roles(self):
+        """Test assignment and checking of different roles."""
+        customer_user = User.objects.create_user(username='customer', email='cust@example.com', password='password', roles=User.Roles.CUSTOMER)
+        organizer_user = User.objects.create_user(username='organizer', email='org@example.com', password='password', roles=User.Roles.ORGANIZER)
+        manager_user = User.objects.create_user(username='manager', email='mgr@example.com', password='password', roles=User.Roles.VENUE_MANAGER)
+
+        self.assertTrue(customer_user.is_customer)
+        self.assertFalse(customer_user.is_organizer)
+
+        self.assertTrue(organizer_user.is_organizer)
+        self.assertFalse(organizer_user.is_venue_manager)
+
+        self.assertTrue(manager_user.is_venue_manager)
+        self.assertFalse(manager_user.is_customer)
+
 
     def test_create_superuser(self):
         admin_user = User.objects.create_superuser(
@@ -50,11 +68,13 @@ class UserSerializerTests(APITestCase):
 
     def test_contains_expected_fields(self):
         data = self.serializer.data
-        self.assertEqual(set(data.keys()), set(['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address']))
+        # Note: 'password' is write_only and won't be in serialized output
+        self.assertEqual(set(data.keys()), set(['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'roles']))
 
     def test_field_content(self):
         data = self.serializer.data
         self.assertEqual(data['username'], self.user_attributes['username'])
+        self.assertEqual(data['roles'], User.Roles.CUSTOMER) # Default role
         self.assertEqual(data['email'], self.user_attributes['email'])
         self.assertEqual(data['first_name'], self.user_attributes['first_name'])
         self.assertEqual(data['last_name'], self.user_attributes['last_name'])
@@ -65,7 +85,8 @@ class UserSerializerTests(APITestCase):
         new_user_data = {
             'username': 'newuser',
             'email': 'new@example.com',
-            'password': 'newpassword123', # Password field for creation
+            'password': 'newpassword123',
+            # 'roles' is read-only in this serializer, so not included for creation via this specific serializer
             'first_name': 'New',
             'last_name': 'User',
             'phone_number': '1122334455',
@@ -239,3 +260,123 @@ class UserViewSetTests(APITestCase):
 # The `test_create_user_admin` test will likely fail on password hashing if the serializer isn't customized.
 # Let's assume the serializer is updated as per these comments for robust password handling.
 # For the purpose of this step, I will not modify the serializer here, but acknowledge this is needed for full correctness.
+
+from decimal import Decimal # Import Decimal
+from django.test import TestCase # Already imported, but good for context
+from unittest.mock import patch, MagicMock
+from django.conf import settings
+from .email_utils import send_booking_confirmation_email
+from django.core.mail import EmailMultiAlternatives # For checking instance type
+from django.utils.html import strip_tags # For email testing
+# Assuming models from other apps are needed for a mock Booking
+from bookings.models import Booking
+from events.models import Event
+from venues.models import Venue
+# User model already imported as User
+
+class EmailUtilsTests(TestCase):
+    @patch('core.email_utils.render_to_string')
+    @patch('core.email_utils.EmailMultiAlternatives') # Mock EmailMultiAlternatives
+    def test_send_booking_confirmation_email(self, MockEmailMultiAlternatives, mock_render_to_string):
+        # 1. Create mock objects
+        mock_user = MagicMock(spec=User)
+        mock_user.email = 'testrecipient@example.com'
+        mock_user.username = 'Test Recipient'
+
+        mock_event = MagicMock(spec=Event)
+        mock_event.name = 'Super Awesome Event'
+        mock_event.currency_code = 'EUR'
+        mock_event.start_time = '2024-12-25T10:00:00Z' # Example datetime string
+
+        mock_booking = MagicMock(spec=Booking)
+        mock_booking.id = 'bk_123xyz'
+        mock_booking.user = mock_user
+        mock_booking.event = mock_event
+        mock_booking.number_of_tickets = 3
+        mock_booking.total_price = Decimal('150.75')
+
+        # 2. Call the function
+        send_booking_confirmation_email(mock_booking)
+
+        # 3. Assert send_mail was called correctly
+        expected_subject = f"Your Booking Confirmation for {mock_event.name}"
+        expected_message_body = f"""
+Dear {mock_user.username},
+
+Thank you for your booking!
+
+Here are your booking details:
+Event: {mock_event.name}
+Number of Tickets: {mock_booking.number_of_tickets}
+Total Price: {mock_booking.total_price} {mock_event.currency_code.upper()}
+Booking ID: {mock_booking.id}
+
+We look forward to seeing you at the event.
+
+Sincerely,
+The Event Booking Platform Team
+"""
+        # Get default from_email or fallback
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+
+        # Mock render_to_string return value
+        mock_html_content = "<html><body>Mocked HTML Content</body></html>"
+        mock_render_to_string.return_value = mock_html_content
+
+        # Mock EmailMultiAlternatives instance and its send method
+        mock_email_msg_instance = MagicMock()
+        MockEmailMultiAlternatives.return_value = mock_email_msg_instance
+
+        # 2. Call the function (already called before this block by the decorator)
+        send_booking_confirmation_email(mock_booking)
+
+
+        # 3. Assert render_to_string was called correctly
+        expected_context = {
+            'user': mock_user,
+            'booking_id': mock_booking.id,
+            'event_name': mock_event.name,
+            'num_tickets': mock_booking.number_of_tickets,
+            'total_price': mock_booking.total_price,
+            'currency': mock_event.currency_code,
+            'event_date': mock_event.start_time,
+        }
+        mock_render_to_string.assert_called_once_with('emails/booking_confirmation.html', expected_context)
+
+        # 4. Assert EmailMultiAlternatives was instantiated and sent correctly
+        MockEmailMultiAlternatives.assert_called_once_with(
+            expected_subject,
+            strip_tags(mock_html_content), # Expected plain text part
+            from_email,
+            [mock_user.email]
+        )
+        mock_email_msg_instance.attach_alternative.assert_called_once_with(mock_html_content, "text/html")
+        mock_email_msg_instance.send.assert_called_once_with(fail_silently=False)
+
+
+    @patch('core.email_utils.EmailMultiAlternatives') # Mock to prevent actual email sending
+    def test_send_booking_confirmation_email_missing_user_email(self, MockEmailMultiAlternatives):
+        mock_event = MagicMock(spec=Event)
+        mock_event.name = 'Event without User Email'
+
+        mock_booking_no_email = MagicMock(spec=Booking)
+        mock_booking_no_email.id = 'bk_no_email'
+        mock_booking_no_email.user = MagicMock(spec=User)
+        del mock_booking_no_email.user.email # Simulate missing email
+        mock_booking_no_email.event = mock_event
+
+        send_booking_confirmation_email(mock_booking_no_email)
+        MockEmailMultiAlternatives.assert_not_called() # Check that constructor wasn't called
+
+    @patch('core.email_utils.EmailMultiAlternatives') # Mock to prevent actual email sending
+    def test_send_booking_confirmation_email_missing_event_details(self, MockEmailMultiAlternatives):
+        mock_user = MagicMock(spec=User)
+        mock_user.email = 'testrecipient@example.com'
+
+        mock_booking_no_event = MagicMock(spec=Booking)
+        mock_booking_no_event.id = 'bk_no_event'
+        mock_booking_no_event.user = mock_user
+        del mock_booking_no_event.event # Simulate missing event
+
+        send_booking_confirmation_email(mock_booking_no_event)
+        MockEmailMultiAlternatives.assert_not_called() # Check that constructor wasn't called

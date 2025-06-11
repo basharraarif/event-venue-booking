@@ -6,15 +6,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      # These will be overridden by .env file if used with backend service,
-      # but good to have defaults or make them explicitly required.
-      # For local dev, often a separate .env file at root or per service is used.
-      # Here, we assume the backend's .env (from .env.example) will define these.
       POSTGRES_DB: ${POSTGRES_DB:-eventplatform_dev}
       POSTGRES_USER: ${POSTGRES_USER:-eventuser_dev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventpass_dev}
     ports:
-      - "5432:5432" # Expose for direct access if needed during dev
+      - "5432:5432"
+    healthcheck: # Added healthcheck for PostgreSQL
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventuser_dev} -d ${POSTGRES_DB:-eventplatform_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   cache:
@@ -29,27 +30,23 @@ services:
     build:
       context: ./event_booking_platform_backend
       dockerfile: Dockerfile
-    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    # Command is now in Dockerfile (CMD gunicorn...)
     volumes:
-      - ./event_booking_platform_backend:/app # Mount local code for development
+      - ./event_booking_platform_backend:/app # For development: mount local code
+      # For production, you might remove this volume mount to use code built into the image
+      # Or use it for specific config/media files if not using external storage.
+      # - static_volume:/app/staticfiles # Example if not using Whitenoise or for Nginx serving
+      - media_volume:/app/media # Persist user-uploaded media files
     ports:
       - "8000:8000"
     env_file:
       - ./event_booking_platform_backend/.env # Developer creates this from .env.example
     depends_on:
       db:
-        condition: service_healthy # Or service_started if no healthcheck
+        condition: service_healthy
       cache:
-        condition: service_started # Redis usually starts quickly
+        condition: service_started
     restart: unless-stopped
-    # Healthcheck for PostgreSQL (optional but good for depends_on)
-    # (PostgreSQL image itself might have a healthcheck. If not, one can be added)
-    # For db service:
-    # healthcheck:
-    #   test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventuser_dev} -d ${POSTGRES_DB:-eventplatform_dev}"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
 
   frontend:
     build:
@@ -74,4 +71,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data: # Only needed if you added a volume to the cache service
+  redis_data:
+  # static_volume: # If you choose to use a volume for static files served by Nginx
+  media_volume: # For user-uploaded media files

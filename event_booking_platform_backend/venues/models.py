@@ -1,6 +1,15 @@
 from django.db import models
+from django.conf import settings
 
 class Venue(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='managed_venues',
+        on_delete=models.SET_NULL, # Or models.PROTECT, or ensure a default
+        null=True, # Allow null for existing rows
+        blank=True, # Allow blank in forms (though less relevant for FK to User unless using ModelForms directly)
+        help_text="The user who owns or manages this venue."
+    )
     name = models.CharField(max_length=255)
     address = models.TextField()
     capacity = models.IntegerField()

@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from decimal import Decimal # Import Decimal for default values
 # from events.models import Event # Avoid direct import for model definition if possible
 
 class Booking(models.Model):
@@ -15,7 +16,13 @@ class Booking(models.Model):
     number_of_tickets = models.PositiveIntegerField(default=1)
     booking_time = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, editable=False) # editable=False as it's calculated
+    price_per_ticket_at_booking = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True, # Will be set on first save
+        blank=True # Should not be user-editable directly in forms if logic handles it
+    )
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
 
     def __str__(self):
         return f"Booking for {self.event.name} by {self.user.username} ({self.number_of_tickets} tickets)"
@@ -37,12 +44,21 @@ class Booking(models.Model):
         # you'd need to fetch the event object first.
         # However, when a Booking instance is saved, self.event is already the related Event instance.
 
-        if self.event and hasattr(self.event, 'ticket_price') and self.event.ticket_price is not None:
-            self.total_price = self.event.ticket_price * self.number_of_tickets
+        # Set price_per_ticket_at_booking only on first save (when pk is None or price_per_ticket_at_booking is not set)
+        if not self.pk or self.price_per_ticket_at_booking is None:
+            if self.event and hasattr(self.event, 'ticket_price') and self.event.ticket_price is not None:
+                self.price_per_ticket_at_booking = self.event.ticket_price
+            else:
+                # Handle case where event price might be missing (e.g. if event is deleted or misconfigured)
+                # This should ideally be prevented by data integrity at event level.
+                # For now, setting to 0 or raising an error are options. Let's default to 0 if not found.
+                self.price_per_ticket_at_booking = self.price_per_ticket_at_booking or Decimal('0.00')
+
+        # Calculate total_price based on the stored price_per_ticket_at_booking
+        if self.price_per_ticket_at_booking is not None and self.number_of_tickets is not None:
+            self.total_price = self.price_per_ticket_at_booking * self.number_of_tickets
         else:
-            # This case should ideally not happen if data integrity is maintained (event always has a price).
-            # Consider raising an error or logging if event.ticket_price is None.
-            self.total_price = 0
+            self.total_price = Decimal('0.00') # Default if something is missing
 
         # Calling full_clean() here ensures model validation is run.
         # It's generally good for data integrity but be aware it can raise ValidationError.
