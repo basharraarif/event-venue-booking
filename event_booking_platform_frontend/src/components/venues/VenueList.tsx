@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { getVenues, Venue } from '../../services/venueService';
+import { getVenues, Venue } from '../../services/venueService'; // Assuming Venue type is exported
 import VenueCard from './VenueCard';
 import Link from 'next/link';
 import { debounce } from 'lodash';
+import LoadingSpinner from '@/components/common/LoadingSpinner'; // Import LoadingSpinner
+import AlertMessage from '@/components/common/AlertMessage'; // Import AlertMessage
 
 const VenueList: React.FC = () => {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -15,27 +17,34 @@ const VenueList: React.FC = () => {
   const [hasPrevPage, setHasPrevPage] = useState<boolean>(false);
 
   // Consolidated filter state
-  const [filterParams, setFilterParams] = useState({
+  const initialFilterParams = {
     capacity: '', // Min capacity
     availability: '', // 'true', 'false', or ''
-    minPrice: '',
-    maxPrice: '',
-    search: '', // New search field
-  });
+    minPricePerHour: '',
+    maxPricePerHour: '',
+    minPricePerDay: '', // New
+    maxPricePerDay: '', // New
+    search: '', // Generic search for name, address etc.
+    // addressContains: '', // Specific address search - can be part of general 'search' or separate
+  };
+  const [filterParams, setFilterParams] = useState(initialFilterParams);
 
-  const fetchVenues = useCallback(async (currentPage: number, currentFilterParams: typeof filterParams) => {
+  const fetchVenues = useCallback(async (currentPage: number, currentFilterParams: typeof initialFilterParams) => {
     setLoading(true);
     setError(null);
     try {
       const params: any = { page: currentPage };
       if (currentFilterParams.search) params.search = currentFilterParams.search;
+      // if (currentFilterParams.addressContains) params.address__icontains = currentFilterParams.addressContains; // Example for specific field
       if (currentFilterParams.capacity) params.capacity__gte = currentFilterParams.capacity;
       if (currentFilterParams.availability !== '') params.is_available = currentFilterParams.availability;
-      if (currentFilterParams.minPrice) params.pricing_per_hour__gte = currentFilterParams.minPrice;
-      if (currentFilterParams.maxPrice) params.pricing_per_hour__lte = currentFilterParams.maxPrice;
+      if (currentFilterParams.minPricePerHour) params.pricing_per_hour__gte = currentFilterParams.minPricePerHour;
+      if (currentFilterParams.maxPricePerHour) params.pricing_per_hour__lte = currentFilterParams.maxPricePerHour;
+      if (currentFilterParams.minPricePerDay) params.pricing_per_day__gte = currentFilterParams.minPricePerDay;
+      if (currentFilterParams.maxPricePerDay) params.pricing_per_day__lte = currentFilterParams.maxPricePerDay;
 
-      const response = await getVenues(params);
-      setVenues(response.results);
+      const response = await getVenues(params); // Ensure getVenues can handle these params
+      setVenues(response.results || []); // Handle case where results might be undefined
       setHasNextPage(response.next !== null);
       setHasPrevPage(response.previous !== null);
     } catch (err) {
@@ -57,8 +66,14 @@ const VenueList: React.FC = () => {
   );
 
   // Handler for input changes
-  const handleFilterChange = (newFilterKeyValue: Partial<typeof filterParams>) => {
+  const handleFilterChange = (newFilterKeyValue: Partial<typeof initialFilterParams>) => {
     debouncedUpdateFiltersAndResetPage(newFilterKeyValue);
+  };
+
+  const clearFilters = () => {
+    setFilterParams(initialFilterParams);
+    setPage(1); // Reset to page 1
+    // fetchVenues(1, initialFilterParams); // Optionally re-fetch immediately or let useEffect handle it
   };
 
   // Single useEffect for fetching data when page or filterParams change
@@ -66,70 +81,65 @@ const VenueList: React.FC = () => {
     fetchVenues(page, filterParams);
   }, [page, filterParams, fetchVenues]);
 
-
+  // Initial loading state for the very first load or when filters result in no items yet
   if (loading && venues.length === 0 && page === 1) {
-    return (
-      <div className="text-center py-10" data-cy="loading-venues-message">
-        <p className="text-xl text-gray-700">Loading venues...</p>
-      </div>
-    );
+    return <LoadingSpinner message="Fetching venues..." />;
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-10" data-cy="error-venues-message">
-        <p className="text-xl text-red-600 bg-red-100 p-4 rounded-md">{error}</p>
-      </div>
-    );
-  }
+  // Subsequent loading (e.g., pagination, or applying filters when some venues are already shown)
+  // This can be a more subtle indicator, or handled by disabling inputs/buttons.
+  // For now, the main spinner above covers initial load, and buttons have disabled states.
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Venues</h1>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Venues</h1>
         <Link href="/venues/create" legacyBehavior>
-          <a className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm">
+          <a className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
             Create New Venue
           </a>
         </Link>
       </div>
 
       {/* Filter Section */}
-      <div className="mb-8 p-4 bg-gray-50 rounded-lg shadow">
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">Filter Venues</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow">
+        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4">Filter Venues</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-end">
           <div>
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700">Search</label>
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
             <input
               type="text"
               id="search"
+              name="search" // Ensure name attribute for handleFilterChange
               data-cy="search-input"
               value={filterParams.search}
               onChange={(e) => handleFilterChange({ search: e.target.value })}
               placeholder="Name, address..."
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
-            <label htmlFor="capacityMin" className="block text-sm font-medium text-gray-700">Min. Capacity</label>
+            <label htmlFor="capacityMin" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Capacity</label>
             <input
               type="number"
               id="capacityMin"
+              name="capacity" // Ensure name attribute
               data-cy="filter-capacity-input"
               value={filterParams.capacity}
               onChange={(e) => handleFilterChange({ capacity: e.target.value })}
               placeholder="e.g., 50"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
-            <label htmlFor="availability" className="block text-sm font-medium text-gray-700">Availability</label>
+            <label htmlFor="availability" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Availability</label>
             <select
               id="availability"
+              name="availability" // Ensure name attribute
               data-cy="filter-availability-select"
               value={filterParams.availability}
               onChange={(e) => handleFilterChange({ availability: e.target.value })}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
               <option value="">Any</option>
               <option value="true">Available</option>
@@ -137,39 +147,89 @@ const VenueList: React.FC = () => {
             </select>
           </div>
           <div>
-            <label htmlFor="minPrice" className="block text-sm font-medium text-gray-700">Min. Price ($/hr)</label>
+            <label htmlFor="minPricePerHour" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Price ($/hr)</label>
             <input
               type="number"
-              id="minPrice"
-              data-cy="filter-min-price-input"
-              value={filterParams.minPrice}
-              onChange={(e) => handleFilterChange({ minPrice: e.target.value })}
+              id="minPricePerHour"
+              name="minPricePerHour" // Ensure name attribute
+              data-cy="filter-min-price-per-hour-input"
+              value={filterParams.minPricePerHour}
+              onChange={(e) => handleFilterChange({ minPricePerHour: e.target.value })}
               placeholder="e.g., 100"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
-            <label htmlFor="maxPrice" className="block text-sm font-medium text-gray-700">Max. Price ($/hr)</label>
+            <label htmlFor="maxPricePerHour" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Max. Price ($/hr)</label>
             <input
               type="number"
-              id="maxPrice"
-              data-cy="filter-max-price-input"
-              value={filterParams.maxPrice}
-              onChange={(e) => handleFilterChange({ maxPrice: e.target.value })}
+              id="maxPricePerHour"
+              name="maxPricePerHour" // Ensure name attribute
+              data-cy="filter-max-price-per-hour-input"
+              value={filterParams.maxPricePerHour}
+              onChange={(e) => handleFilterChange({ maxPricePerHour: e.target.value })}
               placeholder="e.g., 500"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
+          </div>
+          {/* New Price Per Day Filters */}
+          <div>
+            <label htmlFor="minPricePerDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Price ($/day)</label>
+            <input
+              type="number"
+              id="minPricePerDay"
+              name="minPricePerDay" // Ensure name attribute
+              data-cy="filter-min-price-per-day-input"
+              value={filterParams.minPricePerDay}
+              onChange={(e) => handleFilterChange({ minPricePerDay: e.target.value })}
+              placeholder="e.g., 500"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="maxPricePerDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Max. Price ($/day)</label>
+            <input
+              type="number"
+              id="maxPricePerDay"
+              name="maxPricePerDay" // Ensure name attribute
+              data-cy="filter-max-price-per-day-input"
+              value={filterParams.maxPricePerDay}
+              onChange={(e) => handleFilterChange({ maxPricePerDay: e.target.value })}
+              placeholder="e.g., 2000"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2 md:col-span-3 lg:col-span-1 flex items-end"> {/* Adjust span for button layout */}
+            <button
+              onClick={clearFilters}
+              data-cy="clear-filters-button"
+              className="mt-1 w-full bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-md shadow-sm sm:text-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75"
+            >
+              Clear Filters
+            </button>
           </div>
         </div>
       </div>
 
-      {loading && <p className="text-center text-gray-600 py-4">Applying filters / Loading page...</p>}
+      {/* Display error message if error state is set */}
+      {error && (
+        <div className="my-6">
+          <AlertMessage message={error} type="error" />
+        </div>
+      )}
 
-      {venues.length === 0 && !loading && (
+      {/* More nuanced loading state for when filters are applied but list isn't empty */}
+      {loading && venues.length > 0 && (
+         <div className="text-center py-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Applying filters...</p>
+         </div>
+      )}
+
+      {venues.length === 0 && !loading && !error && (
         <div className="text-center py-10" data-cy="no-venues-message">
-          <p className="text-xl text-gray-700">No venues match your criteria or none available.</p>
+          <p className="text-xl text-gray-700 dark:text-gray-300">No venues match your criteria or none available.</p>
            <Link href="/venues/create" legacyBehavior>
-            <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm">
+            <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
               Create New Venue
             </a>
           </Link>

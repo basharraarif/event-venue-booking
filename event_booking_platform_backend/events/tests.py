@@ -340,6 +340,32 @@ class EventViewSetTests(BaseViewSetTests):
         self.assertIn(self.event_by_organizer.name, names)
         self.assertIn(self.event3.name, names)
 
+    def test_filter_event_combined_filters(self):
+        # Filter by status 'upcoming' and a category_name that matches event_by_organizer
+        response = self.client.get(reverse('event-list') + f'?status=upcoming&category_name={self.cat_music.name}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only event_by_organizer should match:
+        # event_by_organizer: upcoming, cat_music
+        # event_by_admin: upcoming, cat_sports
+        # event3: ongoing, cat_music, cat_sports
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.event_by_organizer.name)
+
+    def test_filter_event_no_results(self):
+        response = self.client.get(reverse('event-list') + '?name=NonExistentEventNameXYZ')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    # Note on Pagination:
+    # If DEFAULT_PAGINATION_CLASS is set (e.g., PageNumberPagination), list responses
+    # will be nested like {'count': X, 'next': ..., 'previous': ..., 'results': [...]}.
+    # The current tests often assume response.data is a list directly.
+    # For paginated responses, assertions would need to be on response.data['results']
+    # and potentially check 'count', 'next'/'previous' links.
+    # Example for paginated check (if pagination was active):
+    # self.assertEqual(len(response.data['results']), 1)
+    # self.assertEqual(response.data['results'][0]['name'], self.event_by_organizer.name)
+
     # test_update_event_organizer_or_admin is now split into more specific tests above
     # Old test_delete_event_admin is covered by admin's ability to delete any event (implicitly tested if not specifically denied)
     # or can be specific:

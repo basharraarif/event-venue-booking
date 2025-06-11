@@ -2,14 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add global styles here if needed */
+/* Global body styles */
 body {
-  /* Example:
-  font-family: 'Inter', sans-serif;
-  */
+  @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-200 transition-colors duration-300;
+  font-family: 'Inter', sans-serif; /* Assuming Inter is imported in layout.tsx */
 }
 
-/* Example of a custom component style that could be in @layer components */
-/* .btn-primary {
-  @apply py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75;
-} */
+/* Define base styles for form inputs and buttons using @layer components */
+@layer components {
+  .form-input {
+    @apply mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600
+           bg-white dark:bg-gray-700
+           text-gray-900 dark:text-gray-200
+           rounded-md shadow-sm
+           focus:outline-none focus:ring-indigo-500 focus:border-indigo-500
+           sm:text-sm transition duration-150 ease-in-out;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+
+  .btn {
+    @apply font-semibold py-2 px-4 rounded-md shadow-sm
+           transition duration-150 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-indigo-600 hover:bg-indigo-700 text-white
+           focus:ring-indigo-500;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-300 hover:bg-gray-400
+           dark:bg-gray-600 dark:hover:bg-gray-500
+           text-gray-800 dark:text-white
+           focus:ring-gray-400;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-700 text-white
+           focus:ring-red-500;
+  }
+
+  .link-primary {
+    @apply text-indigo-600 hover:text-indigo-800
+           dark:text-indigo-400 dark:hover:text-indigo-300
+           underline transition duration-150 ease-in-out;
+  }
+}
+
+/* Ensure dark mode is handled at the html or body level if not already */
+/* For example, if you have a theme switcher: */
+/* html.dark { ... } */
+/* body.dark { @apply bg-gray-900 text-gray-200; } */

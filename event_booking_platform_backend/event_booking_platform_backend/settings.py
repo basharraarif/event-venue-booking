@@ -18,10 +18,14 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+import dj_database_url # Import dj_database_url
+
 # Initialize django-environ
 env = environ.Env(
     # set casting, default value
-    DEBUG=(bool, False)
+    DEBUG=(bool, False),
+    DATABASE_URL=(str, 'sqlite:///' + str(BASE_DIR / "db.sqlite3")), # Default to SQLite if not set
+    REDIS_URL=(str, 'redis://localhost:6379/1'), # Default Redis URL
 )
 
 # Assuming .env file is in the parent directory of settings.py (project root)
@@ -63,6 +67,20 @@ SECRET_KEY = env(
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG is True if the DEBUG environment variable is set to 'True', otherwise False.
 DEBUG = env("DEBUG", default=False)
+
+# SECURITY WARNING: In production, ensure these are properly set!
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'] if DEBUG else [])
+
+CSRF_COOKIE_SECURE = not DEBUG # True in production (when DEBUG=False)
+SESSION_COOKIE_SECURE = not DEBUG # True in production
+
+# Optional: HTTPS related security settings (uncomment and configure if your site uses HTTPS)
+# SECURE_SSL_REDIRECT = not DEBUG
+# SECURE_HSTS_SECONDS = 31536000  # 1 year
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') # If behind a proxy that terminates SSL
+
 
 # Remove or comment out the redundant hardcoded SECRET_KEY and DEBUG settings below
 # SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak' # Redundant
@@ -133,6 +151,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Django Allauth middleware
+    "whitenoise.middleware.WhiteNoiseMiddleware", # Whitenoise middleware
 ]
 
 ROOT_URLCONF = "event_booking_platform_backend.urls"
@@ -157,16 +176,10 @@ WSGI_APPLICATION = "event_booking_platform_backend.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-# Defaulting to SQLite for development simplicity.
-# For production, PostgreSQL is recommended. Example using django-environ:
-# DATABASES = {'default': env.db('DATABASE_URL', default='postgres://user:pass@host:port/dbname')}
-# Ensure the appropriate adapter (e.g., psycopg2-binary or psycopg2) is installed for PostgreSQL.
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    'default': env.db_url('DATABASE_URL') # Uses dj_database_url to parse DATABASE_URL
 }
+# Ensure the appropriate adapter (e.g., psycopg2-binary) is installed for PostgreSQL.
 
 # if 'test' in sys.argv: # Keep test db as in-memory sqlite
 #     DATABASES['default'] = {
@@ -177,13 +190,12 @@ DATABASES = {
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "unique-snowflake",  # Optional, for in-memory cache, helps isolate if multiple processes
-    }
-    # To use Redis (ensure 'django-redis' is installed via pip):
-    # 'default': env.cache('REDIS_URL', default='redis://localhost:6379/1')
-    # Example REDIS_URL in .env: REDIS_URL=redis://user:password@hostname:port/database_number
+    "default": env.cache_url('REDIS_URL') # Uses django-environ to parse REDIS_URL
+    # Example for development if Redis is not available:
+    # "default": {
+    #     "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    #     "LOCATION": "unique-snowflake",
+    # }
 }
 
 # Email Configuration for Development
@@ -274,6 +286,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles" # For collectstatic
+# STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage" # Development
+# For production with Whitenoise:
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Media files (User uploads)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

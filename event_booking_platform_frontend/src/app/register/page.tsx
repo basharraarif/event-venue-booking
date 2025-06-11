@@ -4,7 +4,9 @@ import React, { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 // Assuming useAuth might be used later for auto-login or fetching user details post-registration
 // import { useAuth } from '../../contexts/AuthContext';
-import { register as registerUser, RegistrationData } from '../../services/authService'; // Adjust path
+import { register as registerUser, RegistrationData } from '../../services/authService';
+import AlertMessage from '@/components/common/AlertMessage'; // Import AlertMessage
+import Link from 'next/link'; // Import Link
 
 const RegisterPage = () => {
   const router = useRouter();
@@ -79,56 +81,48 @@ const RegisterPage = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-lg rounded-lg">
-        <h2 className="text-3xl font-bold text-center text-gray-800">Register</h2>
+        <h2 className="text-3xl font-bold text-center text-gray-800 dark:text-white">Register</h2>
 
-        {typeof error === 'string' && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-        {successMessage && (
-             <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span className="block sm:inline">{successMessage}</span>
-            </div>
-        )}
+        {typeof error === 'string' && <AlertMessage message={error} type="error" />}
+        {successMessage && <AlertMessage message={successMessage} type="success" />}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
+            <label htmlFor="username" className="form-label">Username</label>
             <input type="text" name="username" id="username" value={formData.username} onChange={handleChange} required
-                   className={`mt-1 block w-full px-3 py-2 border ${displayErrors('username') ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`} />
-            {displayErrors('username') && <p className="mt-1 text-xs text-red-500">{displayErrors('username')}</p>}
+                   className={`form-input ${displayErrors('username') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`} />
+            {displayErrors('username') && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{displayErrors('username')}</p>}
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="email" className="form-label">Email</label>
             <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required
-                   className={`mt-1 block w-full px-3 py-2 border ${displayErrors('email') ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`} />
-            {displayErrors('email') && <p className="mt-1 text-xs text-red-500">{displayErrors('email')}</p>}
+                   className={`form-input ${displayErrors('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`} />
+            {displayErrors('email') && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{displayErrors('email')}</p>}
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+            <label htmlFor="password" className="form-label">Password</label>
             <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} required
-                   className={`mt-1 block w-full px-3 py-2 border ${displayErrors('password') ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`} />
-            {displayErrors('password') && <p className="mt-1 text-xs text-red-500">{displayErrors('password')}</p>}
+                   className={`form-input ${displayErrors('password') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`} />
+            {displayErrors('password') && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{displayErrors('password')}</p>}
           </div>
           <div>
-            <label htmlFor="password2" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+            <label htmlFor="password2" className="form-label">Confirm Password</label>
             <input type="password" name="password2" id="password2" value={formData.password2} onChange={handleChange} required
-                   className={`mt-1 block w-full px-3 py-2 border ${displayErrors('password2') ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`} />
-            {displayErrors('password2') && <p className="mt-1 text-xs text-red-500">{displayErrors('password2')}</p>}
+                   className={`form-input ${displayErrors('password2') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`} />
+            {displayErrors('password2') && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{displayErrors('password2')}</p>}
           </div>
           <div>
             <button type="submit" disabled={isLoading}
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400">
+                    className="w-full btn btn-primary">
               {isLoading ? 'Registering...' : 'Register'}
             </button>
           </div>
         </form>
-        <p className="text-sm text-center text-gray-600">
+        <p className="text-sm text-center text-gray-600 dark:text-gray-300">
           Already have an account?{' '}
-          <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+          <Link href="/login" className="link-primary">
             Login here
-          </a>
+          </Link>
         </p>
       </div>
     </div>

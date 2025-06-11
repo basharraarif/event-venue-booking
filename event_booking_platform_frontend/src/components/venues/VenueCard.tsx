@@ -8,83 +8,70 @@ interface VenueCardProps {
 
 const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
   return (
-    <div className="bg-white shadow-lg rounded-lg overflow-hidden m-4 w-full md:w-1/2 lg:w-1/3 xl:w-1/4" data-cy="venue-card">
-      {/* You can add an image here later if venues have images */}
-      {/* <img className="w-full h-48 object-cover" src={venue.imageUrl || '/placeholder-image.jpg'} alt={venue.name} /> */}
+    // Removed width classes (w-full md:w-1/2 etc.) as grid handles sizing. Added dark mode classes.
+    <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden m-0 md:m-4" data-cy="venue-card">
+      {/* Placeholder for image - consider aspect ratio and object-fit */}
+      <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+        <span className="text-gray-500 dark:text-gray-400">Venue Image (Placeholder)</span>
+      </div>
 
-      <div className="p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2" data-cy="venue-name">{venue.name}</h2>
-        <p className="text-gray-600 text-sm mb-4">{venue.address}</p>
+      <div className="p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white mb-2" data-cy="venue-name">{venue.name}</h2>
+        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 h-10 overflow-hidden">{venue.address}</p> {/* Added height and overflow for consistency */}
 
-        <div className="mb-4">
-          <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-capacity">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <span className="inline-block bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full" data-cy="venue-capacity">
             Capacity: {venue.capacity}
           </span>
-          {venue.is_available && (
-            <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-availability-status">
+          {venue.is_available ? (
+            <span className="inline-block bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 text-xs font-semibold px-2.5 py-0.5 rounded-full" data-cy="venue-availability-status">
               Available
             </span>
-          )}
-          {!venue.is_available && (
-            <span className="inline-block bg-red-100 text-red-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded" data-cy="venue-availability-status">
+          ) : (
+            <span className="inline-block bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 text-xs font-semibold px-2.5 py-0.5 rounded-full" data-cy="venue-availability-status">
               Not Available
             </span>
           )}
         </div>
 
-        <div className="text-gray-700 mb-1">
+        <div className="text-gray-700 dark:text-gray-300 mb-1 text-sm">
           {venue.pricing_per_hour && (
-            <p data-cy="venue-price-per-hour"><strong>Price per hour:</strong> ${parseFloat(venue.pricing_per_hour).toFixed(2)}</p>
+            <p data-cy="venue-price-per-hour"><span className="font-semibold">Hourly:</span> ${parseFloat(venue.pricing_per_hour).toFixed(2)}</p>
           )}
           {venue.pricing_per_day && (
-            <p><strong>Price per day:</strong> ${parseFloat(venue.pricing_per_day).toFixed(2)}</p>
+            <p><span className="font-semibold">Daily:</span> ${parseFloat(venue.pricing_per_day).toFixed(2)}</p>
           )}
           {!venue.pricing_per_hour && !venue.pricing_per_day && (
-            <p className="text-gray-500">Pricing not available</p>
+            <p className="text-gray-500 dark:text-gray-400">Pricing not specified</p>
           )}
         </div>
 
-        {/* Example of displaying amenities if they are an array of strings */}
-        {/* {Array.isArray(venue.amenities) && venue.amenities.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">Amenities:</h4>
-            <div className="flex flex-wrap gap-2">
-              {venue.amenities.map((amenity, index) => (
-                <span key={index} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+        {/* Amenities rendering - simplified, assuming amenities is an array of strings */}
+        {Array.isArray(venue.amenities) && venue.amenities.length > 0 && (
+          <div className="mt-3">
+            <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Amenities:</h4>
+            <div className="flex flex-wrap gap-1">
+              {venue.amenities.slice(0, 3).map((amenity, index) => ( // Show first 3 amenities
+                <span key={index} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-2 py-0.5 rounded-full">
                   {typeof amenity === 'string' ? amenity : JSON.stringify(amenity)}
                 </span>
               ))}
+              {venue.amenities.length > 3 && <span className="text-xs text-gray-500 dark:text-gray-400">...</span>}
             </div>
           </div>
-        )} */}
-
-        {/* Example for object amenities - adapt based on actual structure */}
-        {typeof venue.amenities === 'object' && !Array.isArray(venue.amenities) && Object.keys(venue.amenities).length > 0 && (
-           <div className="mt-4">
-             <h4 className="text-sm font-semibold text-gray-700 mb-1">Amenities:</h4>
-             <div className="flex flex-wrap gap-2">
-               {Object.entries(venue.amenities).map(([key, value]) => (
-                 <span key={key} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
-                   {key}: {String(value)}
-                 </span>
-               ))}
-             </div>
-           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="mt-6 flex justify-end space-x-3">
-          <Link href={`/venues/${venue.id}/edit`} className="text-sm font-medium text-indigo-600 hover:text-indigo-500 px-4 py-2 rounded-md border border-indigo-600 hover:bg-indigo-50 transition-colors">
-            Edit
-          </Link>
-          <button
-            onClick={() => alert('Delete functionality not implemented yet.')} // Placeholder
-            className="text-sm font-medium text-red-600 hover:text-red-500 px-4 py-2 rounded-md border border-red-600 hover:bg-red-50 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
 
+        {/* Action Buttons */}
+        <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-end space-x-2">
+          <Link href={`/venues/${venue.id}`} className="btn btn-secondary btn-sm" legacyBehavior>
+             <a className="btn btn-secondary btn-sm">Details</a>
+          </Link>
+          {/* Edit button might depend on user role/ownership */}
+          <Link href={`/venues/${venue.id}/edit`} className="btn btn-primary btn-sm opacity-50 cursor-not-allowed" legacyBehavior>
+             <a className="btn btn-primary btn-sm opacity-50 cursor-not-allowed" aria-disabled="true">Edit (Soon)</a>
+          </Link>
+        </div>
       </div>
     </div>
   );
