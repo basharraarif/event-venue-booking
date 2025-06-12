@@ -8,7 +8,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('name', 'venue_name_display', 'organizer_username_display', 'start_time', 'end_time', 'status', 'created_at')
+    list_display = ('name', 'venue_name_display', 'organizer_username_display', 'start_time', 'end_time', 'status', 'max_capacity', 'created_at')
     list_filter = ('status', 'start_time', 'venue', 'categories', 'organizer')
     search_fields = ('name', 'description', 'venue__name', 'organizer__username', 'categories__name')
 
@@ -30,10 +30,10 @@ class EventAdmin(admin.ModelAdmin):
     # Define fieldsets for better layout in the add/change forms (optional but good)
     fieldsets = (
         (None, {
-            'fields': ('name', 'description', 'status')
+            'fields': ('name', 'description', 'status', 'ticket_price') # Added ticket_price here for completeness
         }),
-        ('Time and Place', {
-            'fields': ('start_time', 'end_time', 'venue')
+        ('Time, Place & Capacity', { # Renamed section
+            'fields': ('start_time', 'end_time', 'venue', 'max_capacity') # Added max_capacity
         }),
         ('Organization', {
             'fields': ('organizer', 'categories')

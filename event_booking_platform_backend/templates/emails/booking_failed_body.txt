@@ -1,0 +1,14 @@
+Dear {{ user_name }},
+
+We regret to inform you that your booking for the event "{{ event_name }}" (Booking ID: {{ booking_id }}) has failed.
+
+This was due to an issue with processing your payment.
+
+Booking Details:
+- Event: {{ event_name }}
+- Number of Tickets: {{ num_tickets }}
+- Total Price: {{ total_price }} {{ currency }}
+
+Please try booking again or contact support if you continue to have issues.
+
+We apologize for any inconvenience.

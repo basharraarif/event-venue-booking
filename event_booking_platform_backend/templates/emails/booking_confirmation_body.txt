@@ -1,0 +1,16 @@
+Dear {{ user_name }},
+
+Great news! Your booking for the event "{{ event_name }}" (Booking ID: {{ booking_id }}) is confirmed.
+
+Your payment was successful (Transaction ID: {{ transaction_id }}).
+
+Booking Details:
+- Event: {{ event_name }}
+- Date: {{ event_date }}
+- Venue: {{ venue_name }}
+- Number of Tickets: {{ num_tickets }}
+- Total Price: {{ total_price }} {{ currency }}
+
+We look forward to seeing you at the event!
+
+Thank you!

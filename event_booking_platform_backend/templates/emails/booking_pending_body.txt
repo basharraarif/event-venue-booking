@@ -1,0 +1,12 @@
+Dear {{ user_name }},
+
+Your booking for the event "{{ event_name }}" (Booking ID: {{ booking_id }}) is currently pending.
+
+We are awaiting payment confirmation. You will receive another email once the payment is processed.
+
+Details:
+- Event: {{ event_name }}
+- Number of Tickets: {{ num_tickets }}
+- Total Price: {{ total_price }} {{ currency }}
+
+Thank you!

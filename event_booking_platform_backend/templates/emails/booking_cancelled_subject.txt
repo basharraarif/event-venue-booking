@@ -1,0 +1,1 @@
+Booking Cancelled for {{ event_name }}

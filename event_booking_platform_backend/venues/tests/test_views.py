@@ -15,20 +15,35 @@ class TestVenueViewSetPermissions: # Renamed for clarity
     def setup_method(self):
         self.client = APIClient()
 
+        from core.models import Role # Import Role model
+
         # Create users with different roles
         self.admin_user = User.objects.create_superuser('admin_venue', 'admin_venue@example.com', 'adminpass')
+
+        # Create roles or get them if they were created by migrations
+        self.venue_manager_role, _ = Role.objects.get_or_create(name='VENUE_MANAGER')
+        self.customer_role, _ = Role.objects.get_or_create(name='REGULAR_USER') # Assuming REGULAR_USER for customer
+        self.organizer_role, _ = Role.objects.get_or_create(name='EVENT_ORGANIZER')
+
         self.venue_manager_user = User.objects.create_user(
-            username='venuemanager1', email='vm1@example.com', password='vmpass', roles=User.Roles.VENUE_MANAGER
+            username='venuemanager1', email='vm1@example.com', password='vmpass'
         )
+        self.venue_manager_user.roles.add(self.venue_manager_role)
+
         self.another_venue_manager = User.objects.create_user(
-            username='venuemanager2', email='vm2@example.com', password='vmpass2', roles=User.Roles.VENUE_MANAGER
+            username='venuemanager2', email='vm2@example.com', password='vmpass2'
         )
+        self.another_venue_manager.roles.add(self.venue_manager_role)
+
         self.customer_user = User.objects.create_user(
-            username='customer_venue', email='customer_venue@example.com', password='custpass', roles=User.Roles.CUSTOMER
+            username='customer_venue', email='customer_venue@example.com', password='custpass'
         )
+        self.customer_user.roles.add(self.customer_role)
+
         self.organizer_user = User.objects.create_user(
-            username='organizer_venue', email='organizer_venue@example.com', password='orgpass', roles=User.Roles.ORGANIZER
+            username='organizer_venue', email='organizer_venue@example.com', password='orgpass'
         )
+        self.organizer_user.roles.add(self.organizer_role)
 
         # Venues, one owned by venue_manager_user, one by another_venue_manager
         self.venue_owned_by_vm1 = mixer.blend(Venue, name="VM1's Venue", owner=self.venue_manager_user, capacity=100)

@@ -1,9 +1,9 @@
 from rest_framework import viewsets, permissions
+from rest_framework.permissions import IsAuthenticated, IsAdminUser # Added IsAdminUser
 from django_filters.rest_framework import DjangoFilterBackend
-from core.permissions import ( # Import custom permissions
-    IsAdminOrReadOnly,
-    IsOrganizerOrAdmin,
-    IsOrganizerOwnerOrAdminForObject
+from core.permissions import (
+    IsEventOrganizerOrAdmin, # Use this for create
+    IsEventModificationAllowed # Use this for update/delete
 )
 from .models import Event, Category
 from .serializers import EventSerializer, CategorySerializer
@@ -54,7 +54,7 @@ class EventViewSet(viewsets.ModelViewSet):
     Provides CRUD operations and supports filtering.
     The `ticket_price` for the event is defined here.
     """
-    queryset = Event.objects.all().order_by('-start_time')
+    queryset = Event.objects.select_related('venue', 'organizer').all().order_by('-start_time')
     serializer_class = EventSerializer
     # permission_classes = [permissions.DjangoModelPermissionsOrAnonReadOnly] # To be replaced
     filter_backends = [DjangoFilterBackend]
@@ -65,15 +65,17 @@ class EventViewSet(viewsets.ModelViewSet):
         Instantiates and returns the list of permissions that this view requires.
         """
         if self.action == 'create':
-            self.permission_classes = [IsOrganizerOrAdmin]
+            # User must be Authenticated AND (IsEventOrganizer OR IsAdminUser)
+            self.permission_classes = [IsAuthenticated, IsEventOrganizerOrAdmin]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsOrganizerOwnerOrAdminForObject]
+            # User must be Authenticated AND (IsOrganizerFieldOwner OR IsEventOrganizerRole OR IsAdmin)
+            self.permission_classes = [IsAuthenticated, IsEventModificationAllowed]
         elif self.action in ['list', 'retrieve']:
-            # Allow read access for any authenticated user or anonymous (if desired)
-            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+            # Read-only access for anyone.
+            self.permission_classes = [permissions.AllowAny] # Or IsAuthenticatedOrReadOnly / IsAuthenticated
         else:
-            # Default to deny access if action not explicitly handled, or use a restrictive default
-            self.permission_classes = [permissions.IsAdminUser]
+            # Default to deny, or admin only for other actions
+            self.permission_classes = [IsAdminUser] # Or permissions.DenyAll
         return [permission() for permission in self.permission_classes]
 
     # If search functionality is desired (distinct from filtering):

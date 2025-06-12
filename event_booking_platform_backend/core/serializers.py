@@ -1,7 +1,13 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Role # Import Role
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ['id', 'name', 'get_name_display'] # Use get_name_display for verbose name
 
 class UserSerializer(serializers.ModelSerializer):
+    roles = RoleSerializer(many=True, read_only=True) # Use RoleSerializer for roles
     password = serializers.CharField(
         write_only=True,
         required=False, # Not required for updates, only for creation if not provided otherwise
@@ -26,7 +32,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone_number', 'address', 'roles']
-        read_only_fields = ['roles'] # Make roles read-only for now via this serializer
+        # 'roles' is already covered by RoleSerializer(read_only=True)
+        # read_only_fields = ['roles'] # This can be removed if roles field definition handles read_only
         extra_kwargs = {
             'email': {'required': True, 'help_text': "Required. A valid email address."},
             'username': {'help_text': "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."},
