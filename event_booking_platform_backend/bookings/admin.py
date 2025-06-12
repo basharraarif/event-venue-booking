@@ -9,12 +9,13 @@ class BookingAdmin(admin.ModelAdmin):
         'user_username_display',
         'number_of_tickets',
         'status',
+        'price_per_ticket_at_booking', # Added for display
+        'total_price_display', # Use a method to display with currency if desired
         'booking_time',
-        'total_price_display' # Use a method to display with currency if desired
     )
     list_filter = ('status', 'booking_time', 'event', 'user')
     search_fields = ('event__name', 'user__username', 'user__email', 'id')
-    readonly_fields = ('booking_time', 'total_price') # total_price is also editable=False in model
+    readonly_fields = ('booking_time', 'total_price', 'price_per_ticket_at_booking') # Added price_per_ticket_at_booking
 
     # For ForeignKey fields, raw_id_fields can improve performance if there are many related objects
     raw_id_fields = ('event', 'user')
@@ -40,10 +41,10 @@ class BookingAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('id', 'status', 'booking_time', 'total_price')
+            'fields': ('id', 'status', 'booking_time') # Removed total_price from here as it's calculated
         }),
         ('Booking Details', {
-            'fields': ('event', 'user', 'number_of_tickets')
+            'fields': ('event', 'user', 'number_of_tickets', 'price_per_ticket_at_booking', 'total_price') # Added prices here
         }),
     )
 

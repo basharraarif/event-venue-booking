@@ -4,6 +4,7 @@ from .models import Booking
 from events.models import Event
 from django.contrib.auth import get_user_model # For User model reference
 from core.serializers import UserSerializer
+from payments.serializers import PaymentSerializer # Import PaymentSerializer
 # from events.serializers import EventSerializer as FullEventSerializer # Not used here
 
 User = get_user_model() # Get the active User model
@@ -29,6 +30,8 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only=True,
         help_text="Read-only. Key details of the event being booked."
     )
+    payment_status = serializers.CharField(read_only=True, help_text="Read-only. The status of the associated payment.")
+    payment_details = PaymentSerializer(source='payment', read_only=True, help_text="Read-only. Detailed information about the associated payment.")
 
     # 'event' is for writing (expects Event ID).
     event = serializers.PrimaryKeyRelatedField(
@@ -50,12 +53,16 @@ class BookingSerializer(serializers.ModelSerializer):
             'total_price',       # Read-only, calculated by model logic
             'booking_time',      # Read-only
             'status',
+            'payment_status',    # Read-only property from model
+            'payment_details',   # Read-only nested serializer
         ]
         read_only_fields = [
             'booking_time',
             'total_price',
             'price_per_ticket_at_booking',
-            'user' # User is set by perform_create in the ViewSet, not taken from request payload directly.
+            'user', # User is set by perform_create in the ViewSet, not taken from request payload directly.
+            'payment_status',
+            'payment_details',
         ]
         extra_kwargs = {
             'number_of_tickets': {
@@ -88,28 +95,82 @@ class BookingSerializer(serializers.ModelSerializer):
 
         # Capacity Check
         # This check is particularly important for create and when number_of_tickets is updated.
+        # Ensure 'event' is available for validation. If it's an update and 'event' isn't part of `data`,
+        # it means the event for the booking is not being changed, so we use `self.instance.event`.
+        # The `data.get('event', ...)` already handles this.
+
         requested_tickets = data.get('number_of_tickets')
 
-        if event and requested_tickets is not None: # Only if event and tickets are part of validation data
-            venue_capacity = event.venue.capacity
+        # The number_of_tickets validation (must be > 0) is now handled by validate_number_of_tickets method.
+        # We can remove the explicit check here if `validate_number_of_tickets` is always called first.
+        # However, keeping it here or ensuring order of validation can be complex.
+        # For clarity, `validate_number_of_tickets` handles the positive check.
 
-            # Sum of tickets for existing 'confirmed' or 'pending' bookings for this event.
-            # Exclude the current booking if it's an update by checking self.instance.
-            current_booked_tickets = Booking.objects.filter(
-                event=event,
-                status__in=[Booking.BookingStatus.CONFIRMED, Booking.BookingStatus.PENDING]
-            ).exclude(pk=getattr(self.instance, 'pk', None)).aggregate(
-                total_tickets=models.Sum('number_of_tickets')
-            )['total_tickets'] or 0
+        if event and requested_tickets is not None: # Proceed only if event and tickets are part of validation
+            # Use the event's method to get currently confirmed tickets
+            # On create, self.instance is None. On update, self.instance is the booking being updated.
+            # The goal is to check capacity against tickets already confirmed for the event,
+            # PLUS the tickets being requested in this booking operation,
+            # MINUS any tickets already held by this booking if it's an update.
 
-            if current_booked_tickets + requested_tickets > venue_capacity:
-                # Concurrency Note: This check is valuable but not entirely race-condition-proof
-                # without database-level locking (e.g., SELECT FOR UPDATE) if high concurrency
-                # for booking the same event is expected. For many systems, this application-level
-                # check provides a good balance of safety and simplicity.
-                available_tickets = venue_capacity - current_booked_tickets
+            # Effective capacity of the event
+            effective_capacity = event.effective_capacity
+
+            if effective_capacity is None or effective_capacity == 0:
                 raise serializers.ValidationError(
-                    {'number_of_tickets':
-                     f"Not enough tickets available. Only {available_tickets} ticket(s) remaining for event '{event.name}' (Venue capacity: {venue_capacity})."}
+                    {'event': f"This event is not available for booking (capacity: {effective_capacity})."}
                 )
+
+            # Tickets confirmed for this event, EXCLUDING the current booking instance if it's an update
+            # This is tricky because confirmed_tickets_count() on event includes all confirmed.
+            # We need to adjust if this is an update to an existing booking.
+
+            currently_confirmed_for_event = event.confirmed_tickets_count()
+
+            # If this is an update to an existing booking that was already 'confirmed',
+            # its tickets are already in `currently_confirmed_for_event`.
+            # We need to subtract them before adding the new `requested_tickets`.
+            tickets_from_this_booking_pre_update = 0
+            if self.instance and self.instance.pk and self.instance.status == Booking.BookingStatus.CONFIRMED:
+                tickets_from_this_booking_pre_update = self.instance.number_of_tickets
+
+            # Effective number of tickets already booked by others (or by this booking if it wasn't confirmed)
+            # This logic ensures that if a user is changing the number of tickets for their *own confirmed* booking,
+            # the capacity check correctly accounts for the tickets they are releasing or adding.
+            other_confirmed_tickets = currently_confirmed_for_event - tickets_from_this_booking_pre_update
+
+            if other_confirmed_tickets + requested_tickets > effective_capacity:
+                available_tickets = effective_capacity - other_confirmed_tickets
+                if available_tickets < 0: available_tickets = 0 # Ensure non-negative
+                raise serializers.ValidationError(
+                    {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) remaining for event '{event.name}'."}
+                )
+
+        # Validation for updating number_of_tickets based on payment status
+        if self.instance and 'number_of_tickets' in data and data['number_of_tickets'] != self.instance.number_of_tickets:
+            try:
+                # Ensure related payment instance is loaded.
+                # self.instance.payment might be cached; consider self.instance.payment_set.first() or Payment.objects.get(booking=self.instance)
+                # For OneToOneField, self.instance.payment should be fine if correctly related and fetched.
+                payment = self.instance.payment
+                # Check if payment status is not PENDING (using actual values from Payment model choices)
+                # from payments.models import Payment # Import locally if needed
+                # Assuming Payment model has status choices like ('pending', 'successful', 'failed')
+                if payment.status != 'pending': # Ideally, use Payment.PaymentStatus.PENDING if available
+                    raise serializers.ValidationError({
+                        'number_of_tickets': f"Cannot change number of tickets once payment is {payment.status}."
+                    })
+            except Booking.payment.RelatedObjectDoesNotExist: # Adjusted exception type
+                 # This case implies no payment object is associated, which might be an issue
+                 # or could mean booking is new and payment not yet created.
+                 # However, this validation is for self.instance (updates), so payment should exist.
+                print(f"Warning: Payment object not found for booking {self.instance.id} during number_of_tickets validation.")
+                # Depending on business logic, this could be a pass or an error.
+                # For now, let's assume if no payment, it's okay to change tickets (e.g. admin fixing things).
+                pass
+            except AttributeError: # If self.instance.payment doesn't exist for some reason
+                print(f"Warning: Payment attribute error for booking {self.instance.id}.")
+                pass
+
+
         return data

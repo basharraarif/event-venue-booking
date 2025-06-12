@@ -1,0 +1,1 @@
+Booking Pending for {{ event_name }}

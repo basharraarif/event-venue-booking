@@ -5,17 +5,21 @@ from decimal import Decimal # Import Decimal for default values
 # from events.models import Event # Avoid direct import for model definition if possible
 
 class Booking(models.Model):
-    STATUS_CHOICES = [
-        ('confirmed', 'Confirmed'),
-        ('cancelled', 'Cancelled'),
-        ('pending', 'Pending'),
-    ]
+    class BookingStatus(models.TextChoices):
+        CONFIRMED = 'confirmed', 'Confirmed'
+        CANCELLED = 'cancelled', 'Cancelled'
+        PENDING = 'pending', 'Pending'
+        # Add other statuses as needed, e.g. PAYMENT_FAILED
 
     event = models.ForeignKey('events.Event', related_name='bookings', on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='bookings', on_delete=models.CASCADE)
     number_of_tickets = models.PositiveIntegerField(default=1)
     booking_time = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(
+        max_length=20,
+        choices=BookingStatus.choices,
+        default=BookingStatus.PENDING
+    )
     price_per_ticket_at_booking = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -68,3 +72,12 @@ class Booking(models.Model):
              pass # Decided to rely on form/serializer validation primarily for clean() calls.
 
         super().save(*args, **kwargs)
+
+    @property
+    def payment_status(self):
+        """
+        Returns the status of the associated payment.
+        """
+        if hasattr(self, 'payment') and self.payment:
+            return self.payment.status
+        return "no_payment"

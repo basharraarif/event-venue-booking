@@ -1,0 +1,11 @@
+Dear {{ user_name }},
+
+Your booking for the event "{{ event_name }}" (Booking ID: {{ booking_id }}) has been cancelled.
+
+If this was unintentional, please contact us or try booking again.
+
+Booking Details:
+- Event: {{ event_name }}
+- Number of Tickets: {{ num_tickets }}
+
+Thank you.

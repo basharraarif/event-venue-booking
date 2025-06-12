@@ -344,10 +344,10 @@ paths:
       operationId: bookings_bookings_list
       description: "Retrieves a list of bookings.\n        - Regular users will see\
         \ only their own bookings.\n        - Admin users will see all bookings.\n\
-        \        \n        **Filtering Options (query parameters):**\n        - `event`:\
-        \ Filter by event ID (e.g., `?event=1`).\n        - `user`: (Admins only)\
-        \ Filter by user ID (e.g., `?user=2`).\n        - `status`: Filter by booking\
-        \ status. Choices: `pending`, `confirmed`, `cancelled` (e.g., `?status=confirmed`).\n\
+        \n        **Filtering Options (query parameters):**\n        - `event`: Filter\
+        \ by event ID (e.g., `?event=1`).\n        - `user`: (Admins only) Filter\
+        \ by user ID (e.g., `?user=2`).\n        - `status`: Filter by booking status.\
+        \ Choices: `pending`, `confirmed`, `cancelled` (e.g., `?status=confirmed`).\n\
         \        "
       summary: List bookings
       parameters:
@@ -529,6 +529,40 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/bookings/bookings/{id}/cancel_booking/:
+    post:
+      operationId: bookings_bookings_cancel_booking_create
+      description: Cancels a booking.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this booking.
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Booking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Booking'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
   /api/events-management/categories/:
     get:
       operationId: events_management_categories_list
@@ -704,11 +738,11 @@ paths:
   /api/events-management/events/:
     get:
       operationId: events_management_events_list
-      description: "Retrieves a list of all events.\n        \n        **Filtering\
-        \ Options (query parameters):**\n        - `name`: Filter by event name (partial\
-        \ match, case-insensitive, e.g., `?name=Tech`).\n        - `venue`: Filter\
-        \ by venue ID (e.g., `?venue=1`).\n        - `organizer`: Filter by organizer\
-        \ (user) ID (e.g., `?organizer=2`).\n        - `status`: Filter by event status.\
+      description: "Retrieves a list of all events.\n\n        **Filtering Options\
+        \ (query parameters):**\n        - `name`: Filter by event name (partial match,\
+        \ case-insensitive, e.g., `?name=Tech`).\n        - `venue`: Filter by venue\
+        \ ID (e.g., `?venue=1`).\n        - `organizer`: Filter by organizer (user)\
+        \ ID (e.g., `?organizer=2`).\n        - `status`: Filter by event status.\
         \ Choices: `upcoming`, `ongoing`, `past`, `cancelled` (e.g., `?status=upcoming`).\n\
         \        - `category_name`: Filter by the exact name of one category associated\
         \ with the event (e.g., `?category_name=Music`).\n        - `start_time_after`:\
@@ -763,6 +797,7 @@ paths:
       - events-management
       security:
       - tokenAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -821,6 +856,7 @@ paths:
       - events-management
       security:
       - tokenAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -922,14 +958,242 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/payments/:
+    get:
+      operationId: payments_list
+      description: ViewSet for managing Payments.
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - payments
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+          description: ''
+    post:
+      operationId: payments_create
+      description: ViewSet for managing Payments.
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/payments/{id}/:
+    get:
+      operationId: payments_retrieve
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    put:
+      operationId: payments_update
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    patch:
+      operationId: payments_partial_update
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    delete:
+      operationId: payments_destroy
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      security:
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/payments/{id}/fail_payment/:
+    post:
+      operationId: payments_fail_payment_create
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/payments/{id}/succeed_payment/:
+    post:
+      operationId: payments_succeed_payment_create
+      description: ViewSet for managing Payments.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Payment.
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
   /api/users/:
     get:
       operationId: users_list
-      description: Retrieves a list of all user accounts. Access may be restricted
-        based on user permissions (e.g., admins see all, regular users might see a
-        limited set or only themselves depending on configuration not yet implemented
-        here).
-      summary: List all users
+      description: Retrieves a list of all user accounts. Requires authentication.
+        Access to specific user details beyond one's own may be further restricted
+        by object-level permissions (not yet fully implemented here, e.g. admin sees
+        all, user sees self).
+      summary: List all users (Authentication Required)
       parameters:
       - name: search
         required: false
@@ -981,8 +1245,10 @@ paths:
   /api/users/{id}/:
     get:
       operationId: users_retrieve
-      description: Retrieves the details of a specific user by their ID.
-      summary: Retrieve a user
+      description: Retrieves the details of a specific user by their ID. Requires
+        authentication. Users might only be able to retrieve their own profiles unless
+        they are administrators.
+      summary: Retrieve a user (Authentication Required)
       parameters:
       - in: path
         name: id
@@ -1091,17 +1357,17 @@ paths:
   /api/venues/:
     get:
       operationId: venues_list
-      description: "Retrieves a list of all available venues.\n        \n        **Filtering\
+      description: "Retrieves a list of all available venues.\n\n        **Filtering\
         \ Options:**\n        - `name`: Filter by venue name (partial match, case-insensitive).\n\
         \        - `address`: Filter by venue address (partial match, case-insensitive).\n\
         \        - `min_capacity`: Filter by minimum guest capacity (e.g., `?min_capacity=100`).\n\
         \        - `max_capacity`: Filter by maximum guest capacity (e.g., `?max_capacity=500`).\n\
         \        - `has_parking`: Filter by availability of parking (boolean: `true`\
         \ or `false`).\n        - `has_public_transport`: Filter by availability of\
-        \ public transport access (boolean: `true` or `false`).\n        \n      \
-        \  **Search Fields:** (Use the `search` query parameter)\n        - `name`:\
-        \ Search within venue names.\n        - `address`: Search within venue addresses.\n\
-        \        - `amenities`: Search within venue amenities description (if amenities\
+        \ public transport access (boolean: `true` or `false`).\n\n        **Search\
+        \ Fields:** (Use the `search` query parameter)\n        - `name`: Search within\
+        \ venue names.\n        - `address`: Search within venue addresses.\n    \
+        \    - `amenities`: Search within venue amenities description (if amenities\
         \ is a text field).\n        "
       summary: List all venues
       parameters:
@@ -1143,6 +1409,7 @@ paths:
       - venues
       security:
       - tokenAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1196,6 +1463,7 @@ paths:
       - venues
       security:
       - tokenAuth: []
+      - {}
       responses:
         '200':
           content:
@@ -1321,6 +1589,17 @@ components:
           format: int64
           description: Number of tickets to book for the event. Must be a positive
             integer.
+        price_per_ticket_at_booking:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
         booking_time:
           type: string
           format: date-time
@@ -1334,16 +1613,23 @@ components:
             * `confirmed` - Confirmed
             * `cancelled` - Cancelled
             * `pending` - Pending
-        total_price:
+        payment_status:
           type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           readOnly: true
+          description: Read-only. The status of the associated payment.
+        payment_details:
+          allOf:
+          - $ref: '#/components/schemas/Payment'
+          readOnly: true
+          description: Read-only. Detailed information about the associated payment.
       required:
       - booking_time
       - event
       - event_details
       - id
+      - payment_details
+      - payment_status
+      - price_per_ticket_at_booking
       - total_price
       - user
       - user_details
@@ -1434,6 +1720,20 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           description: Price per ticket for the event. Use '0.00' for free events.
             (e.g., '25.50').
+        max_capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+          description: Maximum capacity for this event. If blank, venue capacity will
+            be used. Cannot exceed venue capacity or be less than confirmed tickets.
+        effective_capacity:
+          type: integer
+          readOnly: true
+        confirmed_tickets_count:
+          type: integer
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -1444,7 +1744,9 @@ components:
           readOnly: true
       required:
       - categories
+      - confirmed_tickets_count
       - created_at
+      - effective_capacity
       - end_time
       - id
       - name
@@ -1478,6 +1780,16 @@ components:
           type: string
       required:
       - password
+    NameEnum:
+      enum:
+      - REGULAR_USER
+      - VENUE_MANAGER
+      - EVENT_ORGANIZER
+      type: string
+      description: |-
+        * `REGULAR_USER` - Regular User
+        * `VENUE_MANAGER` - Venue Manager
+        * `EVENT_ORGANIZER` - Event Organizer
     NestedEvent:
       type: object
       description: |-
@@ -1571,6 +1883,17 @@ components:
           format: int64
           description: Number of tickets to book for the event. Must be a positive
             integer.
+        price_per_ticket_at_booking:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
         booking_time:
           type: string
           format: date-time
@@ -1584,11 +1907,15 @@ components:
             * `confirmed` - Confirmed
             * `cancelled` - Cancelled
             * `pending` - Pending
-        total_price:
+        payment_status:
           type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           readOnly: true
+          description: Read-only. The status of the associated payment.
+        payment_details:
+          allOf:
+          - $ref: '#/components/schemas/Payment'
+          readOnly: true
+          description: Read-only. Detailed information about the associated payment.
     PatchedCategory:
       type: object
       properties:
@@ -1663,6 +1990,59 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           description: Price per ticket for the event. Use '0.00' for free events.
             (e.g., '25.50').
+        max_capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+          description: Maximum capacity for this event. If blank, venue capacity will
+            be used. Cannot exceed venue capacity or be less than confirmed tickets.
+        effective_capacity:
+          type: integer
+          readOnly: true
+        confirmed_tickets_count:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedPayment:
+      type: object
+      description: Serializer for the Payment model.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        booking_id:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Amount in major currency units (e.g., USD, EUR)
+        currency:
+          type: string
+          maxLength: 3
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatusEnum'
+          readOnly: true
+        transaction_id:
+          type: string
+          readOnly: true
+          nullable: true
+        payment_method:
+          type: string
+          maxLength: 50
         created_at:
           type: string
           format: date-time
@@ -1710,6 +2090,11 @@ components:
           type: string
           nullable: true
           description: Optional. User's full address.
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          readOnly: true
     PatchedUserDetails:
       type: object
       description: User model w/o password
@@ -1779,6 +2164,67 @@ components:
           type: string
           format: date-time
           readOnly: true
+        owner:
+          type: integer
+          nullable: true
+          description: The user who owns or manages this venue.
+    Payment:
+      type: object
+      description: Serializer for the Payment model.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        booking_id:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Amount in major currency units (e.g., USD, EUR)
+        currency:
+          type: string
+          maxLength: 3
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatusEnum'
+          readOnly: true
+        transaction_id:
+          type: string
+          readOnly: true
+          nullable: true
+        payment_method:
+          type: string
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - booking_id
+      - created_at
+      - id
+      - status
+      - transaction_id
+      - updated_at
+    PaymentStatusEnum:
+      enum:
+      - pending
+      - successful
+      - failed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `successful` - Successful
+        * `failed` - Failed
     Register:
       type: object
       properties:
@@ -1812,6 +2258,21 @@ components:
           readOnly: true
       required:
       - detail
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          $ref: '#/components/schemas/NameEnum'
+        get_name_display:
+          type: string
+          readOnly: true
+      required:
+      - get_name_display
+      - id
+      - name
     Token:
       type: object
       description: Serializer for Token model.
@@ -1860,9 +2321,15 @@ components:
           type: string
           nullable: true
           description: Optional. User's full address.
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          readOnly: true
       required:
       - email
       - id
+      - roles
       - username
     UserDetails:
       type: object
@@ -1937,6 +2404,10 @@ components:
           type: string
           format: date-time
           readOnly: true
+        owner:
+          type: integer
+          nullable: true
+          description: The user who owns or manages this venue.
       required:
       - address
       - capacity

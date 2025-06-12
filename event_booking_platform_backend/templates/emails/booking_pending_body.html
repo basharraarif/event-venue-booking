@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Booking Pending</title>
+</head>
+<body>
+    <p>Dear {{ user_name }},</p>
+    <p>Your booking for the event "<strong>{{ event_name }}</strong>" (Booking ID: {{ booking_id }}) is currently pending.</p>
+    <p>We are awaiting payment confirmation. You will receive another email once the payment is processed.</p>
+    <p>Details:</p>
+    <ul>
+        <li>Event: {{ event_name }}</li>
+        <li>Number of Tickets: {{ num_tickets }}</li>
+        <li>Total Price: {{ total_price }} {{ currency }}</li>
+    </ul>
+    <p>Thank you!</p>
+</body>
+</html>

@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field # Import for schema hints
+from drf_spectacular.types import OpenApiTypes # Import OpenApiTypes
 from .models import Event, Category
 from django.contrib.auth import get_user_model
 from venues.models import Venue # Assuming this is the correct path
@@ -49,6 +51,18 @@ class EventSerializer(serializers.ModelSerializer):
         help_text="ID of the user organizing the event. This is required."
     )
 
+    # Schema hints for properties/methods
+    effective_capacity = serializers.SerializerMethodField() # Changed to SerializerMethodField
+    confirmed_tickets_count = serializers.SerializerMethodField() # Changed to SerializerMethodField
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_effective_capacity(self, obj):
+        return obj.effective_capacity
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_confirmed_tickets_count(self, obj):
+        return obj.confirmed_tickets_count()
+
 
     class Meta:
         model = Event
@@ -58,11 +72,20 @@ class EventSerializer(serializers.ModelSerializer):
             'organizer', 'organizer_username',
             'categories',
             'start_time', 'end_time', 'status', 'ticket_price',
+            'max_capacity',
+            'effective_capacity',
+            'confirmed_tickets_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['created_at', 'updated_at', 'organizer_username', 'venue_name']
+        read_only_fields = [ # Removed effective_capacity and confirmed_tickets_count
+            'created_at', 'updated_at',
+            'organizer_username', 'venue_name',
+        ]
         extra_kwargs = {
             'name': {'help_text': "Name of the event."},
+            # Clarify that effective_capacity and confirmed_tickets_count are read-only in help text if needed,
+            # but schema should show them as readOnly due to ReadOnlyField or @extend_schema_field on a method.
+            'max_capacity': {'help_text': "Maximum capacity for this event. If blank, venue capacity will be used. Cannot exceed venue capacity or be less than confirmed tickets."},
             'description': {'help_text': "Optional. Detailed description of the event."},
             'start_time': {'help_text': "Event start date and time (YYYY-MM-DDTHH:MM:SS format)."},
             'end_time': {'help_text': "Event end date and time (YYYY-MM-DDTHH:MM:SS format). Must be after start_time."},
@@ -85,6 +108,34 @@ class EventSerializer(serializers.ModelSerializer):
         if start_time and end_time and end_time <= start_time:
             raise serializers.ValidationError({'end_time': 'End time must be after start time.'})
 
+        # Capacity Validations
+        venue = data.get('venue') or (self.instance and self.instance.venue)
+        max_capacity_value = data.get('max_capacity') # Use a different variable name to avoid conflict with model field
+
+        if venue and max_capacity_value is not None: # max_capacity_value is the one from input data
+            if max_capacity_value == 0: # Allow setting zero explicitly
+                pass
+            elif max_capacity_value > venue.capacity:
+                raise serializers.ValidationError(
+                    {'max_capacity': f"Event max capacity ({max_capacity_value}) cannot exceed venue capacity ({venue.capacity})."}
+                )
+
+        # Ensure max_capacity is not less than already confirmed tickets when updating
+        if self.instance and max_capacity_value is not None:
+            # Need to access confirmed_tickets_count via the instance method
+            # This count should reflect the state *before* this update is applied.
+            # If status is also being updated in the same request, this could be tricky.
+            # For simplicity, assume confirmed_tickets_count() on instance is pre-update state.
+            instance_confirmed_tickets = self.instance.confirmed_tickets_count()
+            if max_capacity_value < instance_confirmed_tickets:
+                raise serializers.ValidationError(
+                    {'max_capacity': f"Event max capacity ({max_capacity_value}) cannot be less than already confirmed tickets ({instance_confirmed_tickets})."}
+                )
         return data
+
+# Note: EventDetailSerializer is not explicitly defined in the provided file.
+# If it exists and inherits from EventSerializer, it will inherit these changes.
+# If it's a separate definition, it would need similar updates.
+# For now, assuming EventSerializer is the primary one used or is the base for EventDetailSerializer.
 
 # Imports for User and Venue were moved to the top of the file.

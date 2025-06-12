@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Booking Failed</title>
+</head>
+<body>
+    <p>Dear {{ user_name }},</p>
+    <p>We regret to inform you that your booking for the event "<strong>{{ event_name }}</strong>" (Booking ID: {{ booking_id }}) has failed.</p>
+    <p>This was due to an issue with processing your payment.</p>
+    <p>Booking Details:</p>
+    <ul>
+        <li>Event: {{ event_name }}</li>
+        <li>Number of Tickets: {{ num_tickets }}</li>
+        <li>Total Price: {{ total_price }} {{ currency }}</li>
+    </ul>
+    <p>Please try booking again or contact support if you continue to have issues.</p>
+    <p>We apologize for any inconvenience.</p>
+</body>
+</html>

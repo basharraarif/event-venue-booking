@@ -16,11 +16,12 @@ class PaymentSerializer(serializers.ModelSerializer):
             'amount',
             'currency',
             'status',
-            'stripe_payment_intent_id', # Updated field name
+            'transaction_id',
+            'payment_method',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'status', 'stripe_payment_intent_id']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'status', 'transaction_id']
 
 class CreatePaymentSerializer(serializers.Serializer): # This one is likely for direct payment creation, not intent
     """

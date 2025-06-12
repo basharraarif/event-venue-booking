@@ -1,13 +1,15 @@
 from django.contrib import admin
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.utils.translation import gettext_lazy as _ # Import gettext_lazy
-from .models import User
+from django.utils.translation import gettext_lazy as _
+from .models import User, Role # Import Role
+
+admin.site.register(Role) # Register Role model
 
 class CustomUserAdmin(UserAdmin):
     model = User
     # Add custom fields to the list display in the admin
-    list_display = UserAdmin.list_display + ('roles', 'phone_number', 'address',)
+    list_display = UserAdmin.list_display + ('get_roles', 'phone_number', 'address',) # Changed 'roles' to 'get_roles'
     list_filter = UserAdmin.list_filter + ('roles',) # Add roles to filter
 
     # Add custom fields to the fieldsets for the add/change forms
@@ -36,6 +38,12 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Custom Fields & Role', {'fields': ('phone_number', 'address', 'roles',)}),
     )
-    search_fields = UserAdmin.search_fields + ('roles',)
+    search_fields = UserAdmin.search_fields + ('roles__name',) # Search by role name
+
+    filter_horizontal = UserAdmin.filter_horizontal + ('roles',) # Or filter_vertical
+
+    def get_roles(self, obj):
+        return ", ".join([role.get_name_display() for role in obj.roles.all()])
+    get_roles.short_description = _('Roles')
 
 admin.site.register(User, CustomUserAdmin)

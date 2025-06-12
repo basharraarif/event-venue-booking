@@ -37,9 +37,30 @@ class Event(models.Model):
     ticket_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    max_capacity = models.PositiveIntegerField(null=True, blank=True, help_text="Maximum capacity for this event. If blank, venue capacity will be used.")
 
     def __str__(self):
         return self.name
+
+    @property
+    def effective_capacity(self):
+        if self.max_capacity is not None:
+            return self.max_capacity
+        return self.venue.capacity if self.venue else 0
+
+    def confirmed_tickets_count(self):
+        from django.db.models import Sum
+        # Sum of tickets for all CONFIRMED bookings for this event.
+        # Assumes Booking model has a status field and 'CONFIRMED' is a valid status.
+        # This will require importing Booking model or accessing it carefully to avoid circular imports if called from Booking model context.
+        # For now, assuming Booking model and its statuses are defined elsewhere and accessible.
+        # A common approach is to use string 'bookings.Booking' if models are in different apps.
+        # However, since this method is on Event, and Booking has a ForeignKey to Event,
+        # self.bookings should be the related manager.
+        # The status 'CONFIRMED' should match the choices in the Booking model.
+        # Example: Booking.BookingStatus.CONFIRMED or 'confirmed' if it's a string.
+        from bookings.models import Booking # Import here to avoid potential circular import issues at module level
+        return self.bookings.filter(status=Booking.BookingStatus.CONFIRMED).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
 
     # Example custom validation (optional, but good practice)
     def clean(self):

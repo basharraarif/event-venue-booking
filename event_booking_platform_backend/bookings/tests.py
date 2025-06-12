@@ -111,8 +111,14 @@ class BookingSerializerTests(APITestCase):
             'number_of_tickets': 2,
         }
         self.booking = Booking.objects.create(**self.booking_attributes)
+        # Manually create a payment for existing booking for serializer tests, as it's not auto-created on Booking.objects.create
+        from payments.models import Payment
+        self.payment = Payment.objects.create(booking=self.booking, amount=self.booking.total_price, status='pending', payment_method='simulated_card')
+
 
     def test_serialize_booking(self):
+        # Refresh booking to ensure related payment is picked up if accessed via property/relation
+        self.booking.refresh_from_db()
         serializer = BookingSerializer(instance=self.booking)
         data = serializer.data
         self.assertEqual(data['id'], self.booking.id)
@@ -125,6 +131,11 @@ class BookingSerializerTests(APITestCase):
         self.assertEqual(data['event_details']['name'], self.event.name) # Read-only nested
         self.assertEqual(data['user'], self.user.id) # Writable field
         self.assertEqual(data['user_details']['username'], self.user.username) # Read-only nested
+        # Test payment related fields
+        self.assertEqual(data['payment_status'], 'pending')
+        self.assertIsNotNone(data['payment_details'])
+        self.assertEqual(data['payment_details']['status'], 'pending')
+        self.assertEqual(Decimal(data['payment_details']['amount']), self.booking.total_price)
 
     def test_deserialize_booking_creation(self):
         other_user = User.objects.create_user(username='otherbooker', password='pwd')
@@ -353,10 +364,28 @@ class BookingViewSetTests(APITestCase):
         data = {'event': self.event1.id, 'number_of_tickets': 2}
         response = self.client.post(self.list_create_url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Booking.objects.count(), 4)
+        self.assertEqual(Booking.objects.count(), 4) # 3 initial + 1 new
         new_booking = Booking.objects.get(id=response.data['id'])
         self.assertEqual(new_booking.user, self.user1) # Check user auto-assignment
         self.assertEqual(new_booking.total_price, self.event1.ticket_price * 2)
+
+        # Test that a Payment object was automatically created
+        from payments.models import Payment
+        self.assertTrue(Payment.objects.filter(booking=new_booking).exists())
+        payment = Payment.objects.get(booking=new_booking)
+        self.assertEqual(payment.status, 'pending')
+        self.assertEqual(payment.amount, new_booking.total_price)
+        self.assertEqual(payment.payment_method, 'simulated_card')
+
+        # Check that a 'booking pending' email was sent
+        from django.core import mail
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.user1.email])
+        self.assertIn(f"Booking Pending for {self.event1.name}", email.subject)
+        self.assertIn(f"Booking ID: {new_booking.id}", email.body)
+        self.assertIn(self.event1.name, email.body)
+
 
     def test_update_own_booking_user(self): # e.g. change number_of_tickets or status to 'cancelled'
         self.client.force_authenticate(user=self.user1)
@@ -450,3 +479,62 @@ class BookingViewSetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.booking1_user1.id)
+
+
+    def test_cancel_booking_action_owner(self):
+        self.client.force_authenticate(user=self.user1)
+        # Ensure booking1_user1 has a pending payment to test payment cancellation part
+        from payments.models import Payment
+        Payment.objects.create(booking=self.booking1_user1, amount=self.booking1_user1.total_price, status='pending')
+
+        cancel_url = reverse('booking-cancel-booking', kwargs={'pk': self.booking1_user1.pk})
+        response = self.client.post(cancel_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.booking1_user1.refresh_from_db()
+        self.assertEqual(self.booking1_user1.status, 'cancelled')
+
+        # Check associated payment is also cancelled
+        self.assertEqual(self.booking1_user1.payment.status, 'cancelled')
+
+        # Check that a 'booking cancelled' email was sent
+        from django.core import mail
+        self.assertEqual(len(mail.outbox), 1) # Assuming outbox is cleared per test or this is the first email
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.user1.email])
+        self.assertIn(f"Booking Cancelled for {self.booking1_user1.event.name}", email.subject)
+        self.assertIn(f"Booking ID: {self.booking1_user1.id}", email.body)
+
+    def test_cancel_booking_action_already_cancelled(self):
+        self.client.force_authenticate(user=self.user1)
+        self.booking1_user1.status = 'cancelled'
+        self.booking1_user1.save()
+        cancel_url = reverse('booking-cancel-booking', kwargs={'pk': self.booking1_user1.pk})
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Booking is already cancelled', response.data['detail'])
+
+    def test_cancel_booking_action_not_owner(self):
+        self.client.force_authenticate(user=self.user2) # user2 tries to cancel user1's booking
+        cancel_url = reverse('booking-cancel-booking', kwargs={'pk': self.booking1_user1.pk})
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND) # IsOwnerOrAdmin causes 404 if object not found for user
+
+    def test_cancel_booking_action_admin(self):
+        self.client.force_authenticate(user=self.admin_user)
+        # Ensure booking3_user2 has a pending payment
+        from payments.models import Payment
+        Payment.objects.create(booking=self.booking3_user2, amount=self.booking3_user2.total_price, status='pending')
+
+        cancel_url = reverse('booking-cancel-booking', kwargs={'pk': self.booking3_user2.pk})
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.booking3_user2.refresh_from_db()
+        self.assertEqual(self.booking3_user2.status, 'cancelled')
+        self.assertEqual(self.booking3_user2.payment.status, 'cancelled')
+
+        from django.core import mail
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.user2.email]) # Email should go to the booking owner
+        self.assertIn(f"Booking Cancelled for {self.booking3_user2.event.name}", email.subject)
