@@ -13,11 +13,11 @@ class Payment(models.Model):
     currency = models.CharField(max_length=3, default='USD') # ISO 4217 currency code
     status = models.CharField(
         max_length=20,
-        choices=[('pending', 'Pending'), ('successful', 'Successful'), ('failed', 'Failed')],
+        choices=[('pending', 'Pending'), ('succeeded', 'Succeeded'), ('failed', 'Failed')],
         default='pending'
     )
-    transaction_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
-    payment_method = models.CharField(max_length=50, default='simulated_card')
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, null=True, unique=True, help_text="Stripe PaymentIntent ID")
+    payment_method = models.CharField(max_length=50, default='simulated_card') # This might be removed or changed depending on how Stripe Elements is implemented
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

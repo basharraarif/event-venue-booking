@@ -4,7 +4,8 @@ import axiosInstance from './axiosInstance';
 export interface NestedVenue {
   id: string;
   name: string;
-  address?: string; // Optional
+  address?: string;
+  capacity?: number | null; // Add capacity here
 }
 
 // Interface for Organizer/User (can be simplified)
@@ -24,17 +25,20 @@ export interface Event {
   id: string; // Assuming UUID
   name: string;
   description?: string | null;
-  venue: string; // Venue ID
-  venue_name?: string; // Read-only from serializer
+  venue: string; // Venue ID (still useful for FK relations)
+  venue_details?: NestedVenue; // Expanded venue details
   organizer: string; // User ID
   organizer_username?: string; // Read-only from serializer
-  categories: CategoryType[]; // Array of category names or objects
-  start_time: string; // ISO 8601 datetime string
-  end_time: string;   // ISO 8601 datetime string
+  categories: CategoryType[];
+  start_time: string;
+  end_time: string;
   status: 'upcoming' | 'ongoing' | 'past' | 'cancelled';
-  ticket_price: string; // Decimal as string
-  created_at?: string; // ISO 8601 datetime string
-  updated_at?: string; // ISO 8601 datetime string
+  ticket_price: string;
+  max_capacity?: number | null;      // From backend Event.max_capacity
+  active_tickets_count?: number; // From backend (e.g., SerializerMethodField)
+  // venue_capacity is effectively venue_details.capacity
+  created_at?: string;
+  updated_at?: string;
 }
 
 // For query parameters, e.g., for filtering

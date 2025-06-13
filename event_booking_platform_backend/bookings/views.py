@@ -6,21 +6,16 @@ from .models import Booking
 from .serializers import BookingSerializer
 from .filters import BookingFilterSet
 from drf_spectacular.utils import extend_schema_view, extend_schema
-from core.email_utils import send_booking_related_email # Import the generic email function
+from core.email_utils import send_booking_related_email
+from core.permissions import IsOwnerOrAdmin, IsCustomer, IsEventOrganizer, IsVenueManager # Import new permissions
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from payments.models import Payment # Import Payment model
+from django.db.models import Q # For complex queries
+import logging
 
-class IsOwnerOrAdmin(permissions.BasePermission):
-    """
-    Custom permission to only allow owners of an object or admins to edit/delete it.
-    Assumes the model instance has a 'user' attribute.
-    """
-    def has_object_permission(self, request, view, obj):
-        # Read permissions (GET, HEAD, OPTIONS) are granted if the user is the owner or an admin.
-        # This works in conjunction with get_queryset, which already filters for ownership for non-admins.
-        if request.method in permissions.SAFE_METHODS:
-            return obj.user == request.user or request.user.is_staff
+logger = logging.getLogger(__name__)
 
-        # Write permissions (PUT, PATCH, DELETE) are only allowed to the owner or an admin.
-        return obj.user == request.user or request.user.is_staff
+# Local IsOwnerOrAdmin removed, will use the one from core.permissions
 
 @extend_schema_view(
     list=extend_schema(
@@ -64,6 +59,8 @@ class BookingViewSet(viewsets.ModelViewSet):
     - All actions require authentication (`IsAuthenticated`).
     - Users can only list, retrieve, update, or delete their own bookings.
     - Administrator users have full access to all bookings.
+    - Event Organizers can see bookings for their events.
+    - Venue Managers can see bookings for events at their venues.
 
     **Automatic Fields:**
     - `user`: Automatically set to the request user upon creation.
@@ -71,131 +68,230 @@ class BookingViewSet(viewsets.ModelViewSet):
     - `total_price`: Automatically calculated based on event ticket price and number of tickets.
     """
     serializer_class = BookingSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    # permission_classes are set dynamically by get_permissions
     filter_backends = [DjangoFilterBackend]
     filterset_class = BookingFilterSet
 
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'create':
+            # Any authenticated user can create a booking (implicitly IsCustomer or any other role)
+            self.permission_classes = [IsAuthenticated]
+        elif self.action in ['update', 'partial_update', 'destroy', 'cancel_booking']:
+            # Only owner or admin can modify/delete. IsOwnerOrAdmin checks obj.user vs request.user or is_staff.
+            self.permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+        elif self.action in ['list', 'retrieve']:
+            # Authenticated users can list/retrieve based on queryset filtering.
+            # Specific object permissions (like IsCustomer for obj.user) handled by IsOwnerOrAdmin for retrieve.
+            # For list, queryset is key.
+            self.permission_classes = [IsAuthenticated]
+        else:
+            self.permission_classes = [IsAdminUser] # Default for any other actions
+        return [permission() for permission in self.permission_classes]
+
     def get_queryset(self):
         """
-        This view returns a list of all bookings for the currently authenticated user (if not admin).
-        Admins can see all bookings.
-        Uses `select_related` for performance optimization on related fields.
-        Handles schema generation context by returning a base queryset or none.
+        Admins see all bookings.
+        Event Organizers see bookings for their events.
+        Venue Managers see bookings for events at their venues.
+        Customers see their own bookings.
         """
+        user = self.request.user
+        if not user.is_authenticated: # Should be caught by IsAuthenticated permission
+            return Booking.objects.none()
+
         # Handle schema generation context for drf-spectacular
         if getattr(self, 'swagger_fake_view', False):
-            # Return a base queryset, or none() if model/serializer can be inferred otherwise
-            # For drf-spectacular to correctly infer model and serializer from the viewset,
-            # it's often better to provide Booking.objects.all() here, or ensure
-            # serializer_class is enough. Booking.objects.none() is safest if introspection issues occur.
             return Booking.objects.none()
 
-        user = self.request.user
-        # Ensure user is authenticated before attempting to filter by them
-        # IsAuthenticated permission class should handle this, but an explicit check is safer.
-        if not user.is_authenticated:
-             # This part should ideally not be reached if IsAuthenticated permission is active.
-             # If it is reached, it means an unauthenticated user is somehow bypassing permissions.
-            return Booking.objects.none()
+        base_queryset = Booking.objects.select_related('user', 'event', 'event__venue', 'event__organizer').all()
 
-        if user.is_staff:
-            return Booking.objects.select_related('user', 'event', 'event__venue').all().order_by('-booking_time') # Changed to -booking_time from -created_at
-        return Booking.objects.filter(user=user).select_related('user', 'event', 'event__venue').order_by('-booking_time') # Changed to -booking_time
+        if user.is_staff: # Admin sees all
+            return base_queryset.order_by('-booking_time')
+
+        # Build Q objects for filtering based on roles
+        conditions = Q(user=user) # Default: Customer sees their own bookings
+
+        if user.roles.filter(name=IsEventOrganizer.role_name).exists(): # Check actual role name string
+            conditions |= Q(event__organizer=user)
+
+        if user.roles.filter(name=IsVenueManager.role_name).exists():
+            # This assumes Venue has an 'owner' field linked to the User model
+            # And user (VenueManager) is the owner of the venue where the event takes place.
+            conditions |= Q(event__venue__owner=user)
+
+        return base_queryset.filter(conditions).distinct().order_by('-booking_time')
 
     def perform_create(self, serializer):
         """
         Automatically set the user for the booking to `request.user`.
-        The `total_price` is calculated by the Booking model's `save()` method.
-        Creates an associated Payment record with 'pending' status.
-        Snapshots `price_per_ticket_at_booking`.
+        Calculates total_price, creates Payment record if needed, snapshots price.
+        Checks event capacity before creating the booking.
         """
         event = serializer.validated_data['event']
-        # number_of_tickets = serializer.validated_data['number_of_tickets'] # Not directly needed here for price snapshotting
+        requested_tickets = serializer.validated_data['number_of_tickets']
+
+        # --- Capacity Check ---
+        effective_capacity = event.effective_capacity # This is a property on Event model
+
+        # If effective_capacity is None, it means unlimited capacity (as per model property logic)
+        if effective_capacity is not None: # Only check if capacity is defined
+            if effective_capacity == 0: # Explicitly set to zero capacity
+                 raise serializers.ValidationError(
+                    {"detail": "This event cannot be booked as it has zero capacity."}
+                )
+
+            current_active_tickets = event.active_tickets_count()
+            if current_active_tickets + requested_tickets > effective_capacity:
+                available_tickets = effective_capacity - current_active_tickets
+                raise serializers.ValidationError(
+                    {"detail": f"Not enough tickets available. Only {available_tickets} left."}
+                )
+        # --- End Capacity Check ---
+
         price_at_booking = event.ticket_price # Snapshot the event's current ticket price
 
-        # Pass price_per_ticket_at_booking to serializer's save method, which passes to model instance
+        # Pass price_per_ticket_at_booking to serializer's save method
         booking = serializer.save(
             user=self.request.user,
             price_per_ticket_at_booking=price_at_booking
         )
         # The booking.total_price is now calculated by the model's save() method using the snapshotted price.
 
-        # Automatically create a Payment record for the new booking
-        from payments.models import Payment  # Import here to avoid circular dependency issues at module level
+        if booking.total_price > 0:
+            # Paid event: create Payment record, set booking status to PENDING_PAYMENT
+            booking.payment_status = 'pending'
+            booking.status = Booking.BookingStatus.PENDING_PAYMENT
+            booking.save(update_fields=['payment_status', 'status']) # Save these fields first
 
-        # Determine currency, default to USD if not on event
-        currency = 'USD'
-        if hasattr(event, 'currency_code') and event.currency_code: # Assuming Event model has 'currency_code'
-            currency = event.currency_code
-        elif hasattr(event, 'currency') and event.currency: # Fallback to 'currency' attribute
-             currency = event.currency
+            # Determine currency
+            currency = 'USD' # Default currency
+            if hasattr(event, 'currency') and event.currency: # Assuming Event model has 'currency' field
+                currency = event.currency
+            elif hasattr(event, 'currency_code') and event.currency_code: # Alternative common name
+                currency = event.currency_code
 
-        Payment.objects.create(
-            booking=booking,
-            amount=booking.total_price, # Use the calculated total_price from booking instance
-            currency=currency,
-            status=Booking.BookingStatus.PENDING, # Use enum/choices for status consistently
-            payment_method='simulated_card' # Default payment method
-        )
-        # Send booking pending email
+            Payment.objects.create(
+                booking=booking,
+                amount=booking.total_price,
+                currency=currency,
+                status='pending', # Payment model's status
+                # payment_method will be handled by Stripe, not needed here
+            )
+            logger.info(f"Pending Payment record created for booking {booking.id} (User: {booking.user.id}). Booking status: {booking.status}, Payment status: {booking.payment_status}")
+            email_subject_template = 'emails/booking_pending_payment_subject.txt'
+            email_html_template = 'emails/booking_pending_payment_body.html'
+            email_text_template = 'emails/booking_pending_payment_body.txt'
+        else:
+            # Free event: set booking status to CONFIRMED, payment_status to not_required
+            booking.payment_status = 'not_required'
+            booking.status = Booking.BookingStatus.CONFIRMED
+            booking.save(update_fields=['payment_status', 'status'])
+            logger.info(f"Free booking {booking.id} confirmed (User: {booking.user.id}). Payment status: {booking.payment_status}")
+            email_subject_template = 'emails/booking_confirmation_subject.txt' # Use confirmation for free events
+            email_html_template = 'emails/booking_confirmation_body.html'
+            email_text_template = 'emails/booking_confirmation_body.txt'
+
+        # Send appropriate email based on whether payment is required
         try:
             send_booking_related_email(
                 booking=booking,
-                subject_template_name='emails/booking_pending_subject.txt',
-                body_html_template_name='emails/booking_pending_body.html',
-                body_text_template_name='emails/booking_pending_body.txt'
+                subject_template_name=email_subject_template,
+                body_html_template_name=email_html_template,
+                body_text_template_name=email_text_template
             )
         except Exception as e:
-            # Log error but don't fail the booking creation
-            print(f"Failed to send booking pending email for Booking ID {booking.id}: {e}")
+            logger.error(f"Failed to send booking email for Booking ID {booking.id}: {e}")
 
     def perform_update(self, serializer):
         """
         Handle updates to a booking.
+        Checks event capacity if number_of_tickets is changed.
         If number_of_tickets changes for a PENDING booking, update the associated Payment amount.
         """
         original_booking = self.get_object() # Get the booking instance before update
         original_number_of_tickets = original_booking.number_of_tickets
+        requested_new_number_of_tickets = serializer.validated_data.get('number_of_tickets', original_number_of_tickets)
+
+        if requested_new_number_of_tickets != original_number_of_tickets:
+            event = original_booking.event # Event doesn't change during booking update
+
+            # --- Capacity Check for Update ---
+            effective_capacity = event.effective_capacity
+            if effective_capacity is not None: # Only check if capacity is defined
+                if effective_capacity == 0:
+                    # This case is tricky. If capacity is 0, no tickets should be allowed.
+                    # If user is trying to change tickets for a booking on a 0-capacity event, it's an issue.
+                    # However, if requested_new_number_of_tickets is 0 (cancelling booking essentially by tickets),
+                    # this might be allowed by other logic. For now, if capacity is 0, no increase.
+                    if requested_new_number_of_tickets > 0 : # Allow reducing to 0.
+                        raise serializers.ValidationError(
+                            {"detail": "This event has zero capacity; tickets cannot be modified."}
+                        )
+
+                # Account for tickets already held by this booking
+                current_active_tickets_excluding_this = event.active_tickets_count() - original_number_of_tickets
+
+                if current_active_tickets_excluding_this + requested_new_number_of_tickets > effective_capacity:
+                    available_tickets = effective_capacity - current_active_tickets_excluding_this
+                    raise serializers.ValidationError(
+                        {"detail": f"Not enough tickets available for update. Only {available_tickets} left (excluding your original booking)."}
+                    )
+            # --- End Capacity Check for Update ---
 
         updated_booking = serializer.save() # This will call model's save(), recalculating total_price
 
-        if 'number_of_tickets' in serializer.validated_data and \
-           serializer.validated_data['number_of_tickets'] != original_number_of_tickets:
+        if requested_new_number_of_tickets != original_number_of_tickets:
 
             # Payment status check is now handled in BookingSerializer.validate()
             # Here, we just need to update the payment amount if it's still pending.
             try:
-                payment = updated_booking.payment
-                if payment.status == Booking.BookingStatus.PENDING: # Check against BookingStatus.PENDING
-                    payment.amount = updated_booking.total_price
-                    payment.save()
-            except Booking.payment.RelatedObjectDoesNotExist:
-                 print(f"Warning: No payment found for booking {updated_booking.id} during perform_update.")
+                payment = updated_booking.payment # Access via related name 'payment' from Booking model
+                if payment.status == 'pending': # Check against Payment model's 'pending' status
+                    if payment.amount != updated_booking.total_price:
+                        payment.amount = updated_booking.total_price
+                        payment.save(update_fields=['amount'])
+                        logger.info(f"Payment amount updated for booking {updated_booking.id} due to booking modification.")
+            except Payment.DoesNotExist: # Correct exception for RelatedObjectDoesNotExist
+                 logger.warning(f"No payment found for booking {updated_booking.id} during perform_update, though ticket count changed.")
             except Exception as e:
-                print(f"Error updating payment for booking {updated_booking.id}: {e}")
+                logger.error(f"Error updating payment amount for booking {updated_booking.id}: {e}")
                 # Potentially raise a validation error or handle more gracefully if payment update fails
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsOwnerOrAdmin])
+    # The permission for cancel_booking is now set in get_permissions
+    @action(detail=True, methods=['post']) # permission_classes removed from here
     def cancel_booking(self, request, pk=None):
         """
-        Cancels a booking.
+        Cancels a booking. Permissions are handled by get_permissions.
         """
-        booking = self.get_object()
-        if booking.status == 'cancelled':
+        booking = self.get_object() # get_object will apply object-level permissions
+        if booking.status == Booking.BookingStatus.CANCELLED: # Use enum
             return Response({'detail': 'Booking is already cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Add any other conditions under which a booking cannot be cancelled (e.g., event already started)
-        # For example:
+        # Example: Add check if event already started (using Django timezone if configured)
+        # from django.utils import timezone
         # if booking.event.start_time < timezone.now():
         #     return Response({'detail': 'Cannot cancel booking for an event that has already started.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        booking.status = 'cancelled'
-        booking.save()
+        booking.status = Booking.BookingStatus.CANCELLED # Use enum
+        booking.save(update_fields=['status'])
 
         # Also cancel the associated payment if it exists and is pending
-        if hasattr(booking, 'payment') and booking.payment.status == 'pending':
-            booking.payment.status = 'cancelled' # Or 'failed' depending on desired payment workflow for cancellations
-            booking.payment.save()
+        if hasattr(booking, 'payment'): # Check if 'payment' related object exists
+            try:
+                payment = booking.payment
+                if payment.status == 'pending':
+                    payment.status = 'cancelled'
+                    payment.save(update_fields=['status'])
+                    logger.info(f"Associated pending payment {payment.id} for booking {booking.id} also marked as cancelled.")
+            except Payment.DoesNotExist:
+                logger.info(f"No payment record found for booking {booking.id} during cancellation.")
+            except Exception as e: # Catch other potential errors
+                logger.error(f"Error updating payment status during booking cancellation for {booking.id}: {e}")
+        else:
+            logger.info(f"No payment attribute on booking {booking.id}, or booking requires no payment.")
 
         # Send booking cancellation email
         try:

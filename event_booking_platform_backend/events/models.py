@@ -44,23 +44,41 @@ class Event(models.Model):
 
     @property
     def effective_capacity(self):
-        if self.max_capacity is not None:
+        if self.max_capacity is not None and self.max_capacity > 0: # Consider 0 as explicitly no capacity from event override
             return self.max_capacity
-        return self.venue.capacity if self.venue else 0
+        if self.venue and self.venue.capacity > 0:
+            return self.venue.capacity
+        # If event.max_capacity is 0, or venue.capacity is 0 or not set,
+        # this indicates no defined capacity limit according to Option B (unlimited)
+        # or specific handling for 0. For now, let's say 0 from event means 0,
+        # but if venue capacity is 0, it might mean "not specified, so unlimited".
+        # Task states: "if no capacity is defined at event or venue level, booking proceeds"
+        # This means if effective_capacity resolves to 0 or None here, it's "unlimited".
+        # The check logic in the view will handle "unlimited" if this returns 0 or None.
+        # Let's refine to return None for "unlimited" or a very large number if a number is always needed.
+        # For now, returning 0 if not specified, and view logic will treat 0 from here as "no limit".
+        # However, if event.max_capacity is explicitly 0, that should mean zero.
+        if self.max_capacity == 0: # Explicitly set to zero by admin/organizer
+             return 0
+        if self.venue and self.venue.capacity is not None: # Venue capacity might be 0
+            return self.venue.capacity # Could be 0, meaning venue effectively has no bookable capacity unless event overrides
+        return None # Represents "no capacity limit defined"
 
-    def confirmed_tickets_count(self):
+    def active_tickets_count(self):
+        """
+        Calculates the current number of active tickets for the event.
+        Active tickets are those from bookings in 'confirmed' or 'pending_payment' status.
+        """
         from django.db.models import Sum
-        # Sum of tickets for all CONFIRMED bookings for this event.
-        # Assumes Booking model has a status field and 'CONFIRMED' is a valid status.
-        # This will require importing Booking model or accessing it carefully to avoid circular imports if called from Booking model context.
-        # For now, assuming Booking model and its statuses are defined elsewhere and accessible.
-        # A common approach is to use string 'bookings.Booking' if models are in different apps.
-        # However, since this method is on Event, and Booking has a ForeignKey to Event,
-        # self.bookings should be the related manager.
-        # The status 'CONFIRMED' should match the choices in the Booking model.
-        # Example: Booking.BookingStatus.CONFIRMED or 'confirmed' if it's a string.
-        from bookings.models import Booking # Import here to avoid potential circular import issues at module level
-        return self.bookings.filter(status=Booking.BookingStatus.CONFIRMED).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
+        from bookings.models import Booking # Import here to avoid potential circular import issues
+
+        active_statuses = [
+            Booking.BookingStatus.CONFIRMED,
+            Booking.BookingStatus.PENDING_PAYMENT
+        ]
+
+        query = self.bookings.filter(status__in=active_statuses).aggregate(total_tickets=Sum('number_of_tickets'))
+        return query['total_tickets'] or 0
 
     # Example custom validation (optional, but good practice)
     def clean(self):
