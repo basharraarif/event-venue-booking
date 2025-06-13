@@ -1,10 +1,7 @@
 from rest_framework import viewsets, permissions
-from rest_framework.permissions import IsAuthenticated, IsAdminUser # Added IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
-from core.permissions import (
-    IsEventOrganizerOrAdmin, # Use this for create
-    IsEventModificationAllowed # Use this for update/delete
-)
+from core.permissions import IsEventOrganizer # Using the updated IsEventOrganizer
 from .models import Event, Category
 from .serializers import EventSerializer, CategorySerializer
 from .filters import EventFilterSet
@@ -63,20 +60,45 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
+        - Create: Authenticated Admin or EventOrganizer.
+        - Update/Delete: Authenticated Admin or EventOrganizer (who is the event's organizer).
+        - List/Retrieve: AllowAny.
         """
         if self.action == 'create':
-            # User must be Authenticated AND (IsEventOrganizer OR IsAdminUser)
-            self.permission_classes = [IsAuthenticated, IsEventOrganizerOrAdmin]
+            # IsAuthenticated is implicitly handled if other permissions require authentication.
+            # (IsAdminUser | IsEventOrganizer) handles the OR logic.
+            # IsEventOrganizer for 'create' checks role only (has_permission).
+            self.permission_classes = [IsAuthenticated, (IsAdminUser | IsEventOrganizer)]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            # User must be Authenticated AND (IsOrganizerFieldOwner OR IsEventOrganizerRole OR IsAdmin)
-            self.permission_classes = [IsAuthenticated, IsEventModificationAllowed]
+            # IsEventOrganizer for these actions will also use its has_object_permission.
+            self.permission_classes = [IsAuthenticated, (IsAdminUser | IsEventOrganizer)]
         elif self.action in ['list', 'retrieve']:
-            # Read-only access for anyone.
-            self.permission_classes = [permissions.AllowAny] # Or IsAuthenticatedOrReadOnly / IsAuthenticated
+            self.permission_classes = [AllowAny]
         else:
-            # Default to deny, or admin only for other actions
-            self.permission_classes = [IsAdminUser] # Or permissions.DenyAll
+            # Default to deny for any other actions.
+            self.permission_classes = [permissions.DenyAll]
         return [permission() for permission in self.permission_classes]
+
+    def perform_create(self, serializer):
+        """
+        Set the organizer to the current user if they are not an admin choosing another organizer.
+        (Admins might be able to set any organizer - this logic is not yet implemented here,
+        defaulting to request.user if serializer doesn't set it).
+        If the user is an Event Organizer but not Admin, they are the organizer.
+        """
+        # If an EventOrganizer is creating, they are the organizer.
+        # If Admin is creating, they could potentially set another organizer via serializer field.
+        # For now, default to request.user if not provided.
+        # This logic might be better in the serializer's validate or create.
+        # serializer.save(organizer=self.request.user)
+        # Let's assume serializer handles setting organizer, or it defaults if field is read-only / not provided.
+        # If 'organizer' is a writeable field in serializer, admin can set it.
+        # If 'organizer' is read-only and defaults to current user, then EventOrganizer role is key.
+        # The current EventSerializer likely has 'organizer' as read-only or default to current user.
+        # For now, let's assume current user is the organizer.
+        # If an admin needs to set a different organizer, the serializer should allow it.
+        serializer.save(organizer=self.request.user)
+
 
     # If search functionality is desired (distinct from filtering):
     # search_fields = ['name', 'description', 'venue__name', 'categories__name']

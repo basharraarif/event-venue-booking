@@ -41,22 +41,50 @@ describe('PaymentService', () => {
   describe('getPaymentDetails', () => {
     it('should call the correct endpoint and return data on success', async () => {
         const paymentId = 'test-payment-id';
-        const mockPaymentData = { id: paymentId, status: 'succeeded', amount: 1000 };
+        const mockPaymentData = { id: paymentId, status: 'succeeded', amount: "100.00", currency: "USD" }; // More complete mock
         mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockPaymentData });
 
         const result = await PaymentService.getPaymentDetails(paymentId);
 
-        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/${paymentId}/`);
+        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/view/${paymentId}/`); // Updated URL
         expect(result).toEqual(mockPaymentData);
     });
 
-    it('should throw error on failure', async () => {
+    it('should throw error on failure for getPaymentDetails', async () => {
         const paymentId = 'test-payment-id';
         const mockError = new Error('Network Error');
         mockedAxiosInstance.get.mockRejectedValueOnce(mockError);
 
         await expect(PaymentService.getPaymentDetails(paymentId)).rejects.toThrow('Network Error');
-        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/${paymentId}/`);
+        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/view/${paymentId}/`); // Updated URL
+    });
+  });
+
+  describe('getBookingDetails', () => {
+    it('should call the correct endpoint and return data on success', async () => {
+      const bookingId = 'test-booking-id';
+      const mockBookingData = {
+        id: bookingId,
+        event_details: { name: 'Test Event', ticket_price: '10.00' },
+        number_of_tickets: 2,
+        total_price: '20.00',
+        status: 'pending_payment'
+      };
+      mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockBookingData });
+
+      const result = await PaymentService.getBookingDetails(bookingId);
+
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/bookings/${bookingId}/`);
+      expect(result).toEqual(mockBookingData);
+    });
+
+    it('should throw error on failure for getBookingDetails', async () => {
+      const bookingId = 'test-booking-id';
+      const mockError = new Error('Fetch Booking Error');
+      mockedAxiosInstance.get.mockRejectedValueOnce(mockError);
+
+      await expect(PaymentService.getBookingDetails(bookingId)).rejects.toThrow('Fetch Booking Error');
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/bookings/${bookingId}/`);
     });
   });
 });

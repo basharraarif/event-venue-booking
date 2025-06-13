@@ -9,6 +9,7 @@ class Booking(models.Model):
         CONFIRMED = 'confirmed', 'Confirmed'
         CANCELLED = 'cancelled', 'Cancelled'
         PENDING = 'pending', 'Pending'
+        PENDING_PAYMENT = 'pending_payment', 'Pending Payment'
         # Add other statuses as needed, e.g. PAYMENT_FAILED
 
     event = models.ForeignKey('events.Event', related_name='bookings', on_delete=models.CASCADE)
@@ -19,6 +20,17 @@ class Booking(models.Model):
         max_length=20,
         choices=BookingStatus.choices,
         default=BookingStatus.PENDING
+    )
+    payment_status_choices = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+        ('not_required', 'Not Required')
+    ]
+    payment_status = models.CharField(
+        max_length=20,
+        choices=payment_status_choices,
+        default='not_required'
     )
     price_per_ticket_at_booking = models.DecimalField(
         max_digits=10,
@@ -73,11 +85,8 @@ class Booking(models.Model):
 
         super().save(*args, **kwargs)
 
-    @property
-    def payment_status(self):
+    def is_payment_required(self):
         """
-        Returns the status of the associated payment.
+        Checks if payment is required for this booking based on its total price.
         """
-        if hasattr(self, 'payment') and self.payment:
-            return self.payment.status
-        return "no_payment"
+        return self.total_price is not None and self.total_price > Decimal('0.00')

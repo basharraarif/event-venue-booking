@@ -5,12 +5,14 @@ import React,  { createContext, useContext, useState, useEffect, ReactNode } fro
 // For now, we'll define placeholder functions or skip direct calls.
 
 interface User {
-  id: number;
-  pk?: number; // dj-rest-auth often returns user details with 'pk' as id
+  id: string; // Changed to string if backend uses UUIDs for user ID consistently
+  pk?: string; // dj-rest-auth often returns user details with 'pk' as id (can be string or number)
   username: string;
   email: string;
-  // Add other user fields as needed from your backend User model
-  // e.g. first_name, last_name
+  roles: string[]; // Added roles
+  // Add other user fields as needed
+  first_name?: string;
+  last_name?: string;
 }
 
 interface AuthContextType {
@@ -18,98 +20,105 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean; // For initial auth check
-  login: (token: string, userData: User) => void; // Simplified login for context
-  logout: () => void; // Simplified logout for context
-  // setUser: (user: User | null) => void; // If manual user setting is needed
-  // setToken: (token: string | null) => void; // If manual token setting is needed
+  login: (token: string, userData: User) => void;
+  logout: () => void;
+  fetchAndUpdateUser: () => Promise<void>; // To refresh user data including roles
+  hasRole: (roleName: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Assuming authService.getCurrentUser() exists and fetches user details including roles
+import authService from '@/services/authService'; // Import your authService
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // True initially until checked
+  const [token, setToken] = useState<string | null>(null); // No change here
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchAndUpdateUser = async (currentToken?: string) => {
+    const effectiveToken = currentToken || token;
+    if (effectiveToken) {
+      try {
+        // authService.getCurrentUser() should fetch from /auth/user/ and return User object including roles
+        const userData = await authService.getCurrentUser(); // Assumes token is handled by axiosInstance
+        if (userData) {
+          // Ensure roles are always an array, even if backend might send null/undefined
+          const roles = userData.roles?.map((r: any) => typeof r === 'string' ? r : r.name) || [];
+          const userWithProcessedRoles = { ...userData, roles };
+
+          setUser(userWithProcessedRoles);
+          setIsAuthenticated(true);
+          localStorage.setItem('authUser', JSON.stringify(userWithProcessedRoles)); // Update stored user
+        } else { // Should not happen if getCurrentUser throws error on failure
+          logoutContext(); // If no user data, treat as logout
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data with token", error);
+        logoutContext(); // Clear invalid session
+      }
+    } else {
+      // No token, ensure logged out state
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    // Check for token in localStorage on initial load
     const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
-      setToken(storedToken);
-      // Here you would typically validate the token by fetching user data
-      // For now, we'll assume if a token exists, it's valid for this placeholder.
-      // In a real app:
-      // async function fetchUser() {
-      //   try {
-      //     // const userData = await authService.getCurrentUser(storedToken); // Pass token
-      //     // setUser(userData);
-      //     // setIsAuthenticated(true);
-      //     // For placeholder:
-      //     const placeholderUser = JSON.parse(localStorage.getItem('authUser') || 'null');
-      //     if (placeholderUser) {
-      //       setUser(placeholderUser);
-      //       setIsAuthenticated(true);
-      //     } else {
-      //        localStorage.removeItem('authToken'); // Token without user data is invalid
-      //     }
-      //   } catch (error) {
-      //     console.error("Failed to fetch user with stored token", error);
-      //     localStorage.removeItem('authToken');
-      //     localStorage.removeItem('authUser');
-      //     setIsAuthenticated(false);
-      //     setUser(null);
-      //     setToken(null);
-      //   } finally {
-      //     setIsLoading(false);
-      //   }
-      // }
-      // fetchUser();
-
-      // Simplified for now: if token exists, try to get user from local storage
-      const storedUser = localStorage.getItem('authUser');
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-          setIsAuthenticated(true);
-        } catch (e) {
-          console.error("Error parsing stored user", e);
-          localStorage.removeItem('authUser');
-          localStorage.removeItem('authToken'); // Clear invalid state
-          setIsAuthenticated(false);
-        }
-      } else {
-        // If only token exists but no user, it might be an old/invalid state
-        // Or you'd fetch user data here. For now, clear if no user.
-        localStorage.removeItem('authToken');
-        setToken(null);
-        setIsAuthenticated(false);
-      }
-
+      setToken(storedToken); // Set token for axios interceptor to pick up
+      // Then fetch user data using this token
+      // This replaces the simplified localStorage.getItem('authUser')
+      fetchAndUpdateUser(storedToken);
+    } else {
+      setIsLoading(false); // No token, not loading
     }
-    setIsLoading(false); // Done checking
   }, []);
 
-  const loginContext = (newToken: string, userData: User) => {
+
+  const loginContext = (newToken: string, userDataFromLogin: User) => { // userDataFromLogin might be basic
     localStorage.setItem('authToken', newToken);
-    localStorage.setItem('authUser', JSON.stringify(userData));
     setToken(newToken);
-    setUser(userData);
+    // It's crucial that userDataFromLogin includes roles, or we fetch them immediately.
+    // If /auth/login/ returns full user details including roles (from UserDetailsSerializer):
+    const roles = userDataFromLogin.roles?.map((r: any) => typeof r === 'string' ? r : r.name) || [];
+    const fullUser = { ...userDataFromLogin, roles };
+    setUser(fullUser);
+    localStorage.setItem('authUser', JSON.stringify(fullUser));
     setIsAuthenticated(true);
+    // If login endpoint doesn't return roles, uncomment and use:
+    // fetchAndUpdateUser(newToken);
   };
 
   const logoutContext = () => {
+    // Call backend logout first (important for session invalidation if using session auth)
+    authService.logout().catch(err => console.error("Logout API call failed but proceeding with client logout", err));
+
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    // Here you would also call the backend logout endpoint via authService
-    // e.g. authService.logout().catch(err => console.error("Logout API call failed", err));
+  };
+
+  const hasRole = (roleName: string): boolean => {
+    return user?.roles?.includes(roleName) || false;
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, token, isLoading, login: loginContext, logout: logoutContext }}>
+    <AuthContext.Provider value={{
+      isAuthenticated,
+      user,
+      token,
+      isLoading,
+      login: loginContext,
+      logout: logoutContext,
+      fetchAndUpdateUser,
+      hasRole
+    }}>
       {children}
     </AuthContext.Provider>
   );

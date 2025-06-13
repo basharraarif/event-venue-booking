@@ -363,10 +363,12 @@ paths:
           - cancelled
           - confirmed
           - pending
+          - pending_payment
         description: |-
           * `confirmed` - Confirmed
           * `cancelled` - Cancelled
           * `pending` - Pending
+          * `pending_payment` - Pending Payment
       - in: query
         name: user
         schema:
@@ -532,7 +534,7 @@ paths:
   /api/bookings/bookings/{id}/cancel_booking/:
     post:
       operationId: bookings_bookings_cancel_booking_create
-      description: Cancels a booking.
+      description: Cancels a booking. Permissions are handled by get_permissions.
       parameters:
       - in: path
         name: id
@@ -958,10 +960,81 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/payments/:
+  /api/payments/create-payment-intent/:
+    post:
+      operationId: payments_create_payment_intent_create
+      description: "Given a `booking_id`, this endpoint creates a new Stripe PaymentIntent\
+        \ \n    or retrieves an existing one if the payment is still pending.\n  \
+        \  It returns the `client_secret` needed by the frontend to confirm the payment\
+        \ with Stripe.\n    "
+      summary: Create or Retrieve Stripe Payment Intent
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentCreate'
+        required: true
+      security:
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntentResponse'
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntentResponse'
+          description: ''
+        '400':
+          description: Bad Request - Invalid input, booking not payable, or already
+            paid
+        '401':
+          description: Unauthorized - Authentication required
+        '404':
+          description: Not Found - Booking not found or permission denied
+        '500':
+          description: Internal Server Error - Stripe API error or other unexpected
+            error
+  /api/payments/stripe-webhook/:
+    post:
+      operationId: payments_stripe_webhook_create
+      description: "Handles incoming webhook events from Stripe to update payment\
+        \ statuses,\n        booking statuses, and send notifications.\n        This\
+        \ endpoint should be configured in your Stripe dashboard.\n        It verifies\
+        \ the Stripe signature for security.\n        Currently handles: `payment_intent.succeeded`,\
+        \ `payment_intent.payment_failed`.\n        "
+      summary: Stripe Webhook Handler
+      tags:
+      - payments
+      security:
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: Webhook received and processed successfully (or acknowledged
+            for unhandled events).
+        '400':
+          description: Bad Request - Invalid payload or signature.
+        '500':
+          description: Internal Server Error - Webhook secret not configured.
+  /api/payments/view/:
     get:
-      operationId: payments_list
-      description: ViewSet for managing Payments.
+      operationId: payments_view_list
+      description: |-
+        ViewSet for managing Payments.
+        Provides read-only access to payments for authenticated users (admins or own payments).
       parameters:
       - name: search
         required: false
@@ -982,36 +1055,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Payment'
           description: ''
-    post:
-      operationId: payments_create
-      description: ViewSet for managing Payments.
-      tags:
-      - payments
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Payment'
-        required: true
-      security:
-      - tokenAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Payment'
-          description: ''
-  /api/payments/{id}/:
+  /api/payments/view/{id}/:
     get:
-      operationId: payments_retrieve
-      description: ViewSet for managing Payments.
+      operationId: payments_view_retrieve
+      description: |-
+        ViewSet for managing Payments.
+        Provides read-only access to payments for authenticated users (admins or own payments).
       parameters:
       - in: path
         name: id
@@ -1022,161 +1071,6 @@ paths:
         required: true
       tags:
       - payments
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Payment'
-          description: ''
-    put:
-      operationId: payments_update
-      description: ViewSet for managing Payments.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Payment.
-        required: true
-      tags:
-      - payments
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Payment'
-        required: true
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Payment'
-          description: ''
-    patch:
-      operationId: payments_partial_update
-      description: ViewSet for managing Payments.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Payment.
-        required: true
-      tags:
-      - payments
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedPayment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedPayment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedPayment'
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Payment'
-          description: ''
-    delete:
-      operationId: payments_destroy
-      description: ViewSet for managing Payments.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Payment.
-        required: true
-      tags:
-      - payments
-      security:
-      - tokenAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/payments/{id}/fail_payment/:
-    post:
-      operationId: payments_fail_payment_create
-      description: ViewSet for managing Payments.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Payment.
-        required: true
-      tags:
-      - payments
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Payment'
-        required: true
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Payment'
-          description: ''
-  /api/payments/{id}/succeed_payment/:
-    post:
-      operationId: payments_succeed_payment_create
-      description: ViewSet for managing Payments.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Payment.
-        required: true
-      tags:
-      - payments
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Payment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Payment'
-        required: true
       security:
       - tokenAuth: []
       responses:
@@ -1376,6 +1270,13 @@ paths:
         schema:
           type: string
       - in: query
+        name: amenities_name_in
+        schema:
+          type: string
+        description: Filter by amenities. Provide a comma-separated list of amenity
+          names (e.g., "wifi,projector"). Matches if any of the provided amenities
+          are present in the venue's list.
+      - in: query
         name: capacity
         schema:
           type: integer
@@ -1399,6 +1300,10 @@ paths:
         name: min_price_per_hour
         schema:
           type: number
+      - in: query
+        name: owner
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -1613,6 +1518,7 @@ components:
             * `confirmed` - Confirmed
             * `cancelled` - Cancelled
             * `pending` - Pending
+            * `pending_payment` - Pending Payment
         payment_status:
           type: string
           readOnly: true
@@ -1638,11 +1544,13 @@ components:
       - confirmed
       - cancelled
       - pending
+      - pending_payment
       type: string
       description: |-
         * `confirmed` - Confirmed
         * `cancelled` - Cancelled
         * `pending` - Pending
+        * `pending_payment` - Pending Payment
     Category:
       type: object
       properties:
@@ -1782,14 +1690,16 @@ components:
       - password
     NameEnum:
       enum:
-      - REGULAR_USER
-      - VENUE_MANAGER
+      - ADMIN
       - EVENT_ORGANIZER
+      - VENUE_MANAGER
+      - CUSTOMER
       type: string
       description: |-
-        * `REGULAR_USER` - Regular User
-        * `VENUE_MANAGER` - Venue Manager
+        * `ADMIN` - Admin
         * `EVENT_ORGANIZER` - Event Organizer
+        * `VENUE_MANAGER` - Venue Manager
+        * `CUSTOMER` - Customer
     NestedEvent:
       type: object
       description: |-
@@ -1907,6 +1817,7 @@ components:
             * `confirmed` - Confirmed
             * `cancelled` - Cancelled
             * `pending` - Pending
+            * `pending_payment` - Pending Payment
         payment_status:
           type: string
           readOnly: true
@@ -2004,45 +1915,6 @@ components:
         confirmed_tickets_count:
           type: integer
           readOnly: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-    PatchedPayment:
-      type: object
-      description: Serializer for the Payment model.
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        booking_id:
-          type: string
-          format: uuid
-          readOnly: true
-        amount:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-          description: Amount in major currency units (e.g., USD, EUR)
-        currency:
-          type: string
-          maxLength: 3
-        status:
-          allOf:
-          - $ref: '#/components/schemas/PaymentStatusEnum'
-          readOnly: true
-        transaction_id:
-          type: string
-          readOnly: true
-          nullable: true
-        payment_method:
-          type: string
-          maxLength: 50
         created_at:
           type: string
           format: date-time
@@ -2180,25 +2052,27 @@ components:
           type: string
           format: uuid
           readOnly: true
+        user_id:
+          type: string
+          readOnly: true
         amount:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
           description: Amount in major currency units (e.g., USD, EUR)
         currency:
           type: string
-          maxLength: 3
+          readOnly: true
         status:
           allOf:
           - $ref: '#/components/schemas/PaymentStatusEnum'
           readOnly: true
-        transaction_id:
+        stripe_payment_intent_id:
           type: string
           readOnly: true
           nullable: true
-        payment_method:
-          type: string
-          maxLength: 50
+          description: Stripe PaymentIntent ID
         created_at:
           type: string
           format: date-time
@@ -2211,19 +2085,44 @@ components:
       - amount
       - booking_id
       - created_at
+      - currency
       - id
       - status
-      - transaction_id
+      - stripe_payment_intent_id
       - updated_at
+      - user_id
+    PaymentIntentCreate:
+      type: object
+      description: |-
+        Serializer for creating a Payment Intent.
+        Validates that the booking exists and requires payment.
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+      required:
+      - booking_id
+    PaymentIntentResponse:
+      type: object
+      description: Serializer for responding with the PaymentIntent's client secret.
+      properties:
+        client_secret:
+          type: string
+        payment_id:
+          type: string
+          format: uuid
+      required:
+      - client_secret
+      - payment_id
     PaymentStatusEnum:
       enum:
       - pending
-      - successful
+      - succeeded
       - failed
       type: string
       description: |-
         * `pending` - Pending
-        * `successful` - Successful
+        * `succeeded` - Succeeded
         * `failed` - Failed
     Register:
       type: object

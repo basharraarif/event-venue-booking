@@ -21,9 +21,13 @@ class TestVenueViewSetPermissions: # Renamed for clarity
         self.admin_user = User.objects.create_superuser('admin_venue', 'admin_venue@example.com', 'adminpass')
 
         # Create roles or get them if they were created by migrations
-        self.venue_manager_role, _ = Role.objects.get_or_create(name='VENUE_MANAGER')
-        self.customer_role, _ = Role.objects.get_or_create(name='REGULAR_USER') # Assuming REGULAR_USER for customer
-        self.organizer_role, _ = Role.objects.get_or_create(name='EVENT_ORGANIZER')
+        self.admin_role, _ = Role.objects.get_or_create(name=Role.ADMIN)
+        self.venue_manager_role, _ = Role.objects.get_or_create(name=Role.VENUE_MANAGER)
+        self.customer_role, _ = Role.objects.get_or_create(name=Role.CUSTOMER) # Changed from REGULAR_USER
+        self.organizer_role, _ = Role.objects.get_or_create(name=Role.EVENT_ORGANIZER)
+
+        self.admin_user.roles.add(self.admin_role)
+
 
         self.venue_manager_user = User.objects.create_user(
             username='venuemanager1', email='vm1@example.com', password='vmpass'
@@ -40,8 +44,8 @@ class TestVenueViewSetPermissions: # Renamed for clarity
         )
         self.customer_user.roles.add(self.customer_role)
 
-        self.organizer_user = User.objects.create_user(
-            username='organizer_venue', email='organizer_venue@example.com', password='orgpass'
+        self.organizer_user = User.objects.create_user( # User who is only an event organizer
+            username='organizer_only_venue', email='organizer_only_venue@example.com', password='orgpass'
         )
         self.organizer_user.roles.add(self.organizer_role)
 
@@ -74,24 +78,24 @@ class TestVenueViewSetPermissions: # Renamed for clarity
         self.client.force_authenticate(user=self.venue_manager_user)
         url = reverse("venue-list")
         data = {
-            "name": "New Venue by VM1", "address": "5 VM St", "capacity": 75,
-            "owner": self.venue_manager_user.id # Important: owner should be the creator
+            "name": "New Venue by VM1", "address": "5 VM St", "capacity": 75
+            # Owner is set by perform_create in the view
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
         assert Venue.objects.filter(name="New Venue by VM1", owner=self.venue_manager_user).exists()
 
-    def test_create_venue_as_customer_forbidden(self):
+    def test_create_venue_as_customer_user_forbidden(self):
         self.client.force_authenticate(user=self.customer_user)
         url = reverse("venue-list")
-        data = {"name": "Customer Venue Fail", "address": "Cust St", "capacity": 10, "owner": self.customer_user.id}
+        data = {"name": "Customer Venue Fail", "address": "Cust St", "capacity": 10}
         response = self.client.post(url, data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_create_venue_as_organizer_forbidden(self):
+    def test_create_venue_as_event_organizer_forbidden(self): # Assuming EO is not also VM
         self.client.force_authenticate(user=self.organizer_user)
         url = reverse("venue-list")
-        data = {"name": "Organizer Venue Fail", "address": "Org St", "capacity": 10, "owner": self.organizer_user.id}
+        data = {"name": "Organizer Venue Fail", "address": "Org St", "capacity": 10}
         response = self.client.post(url, data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
 

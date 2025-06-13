@@ -1,9 +1,6 @@
 from rest_framework import viewsets, filters, permissions
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from core.permissions import (
-    IsVenueManagerOrAdmin, # Use this for create
-    IsVenueModificationAllowed # Use this for update/delete
-)
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from core.permissions import IsVenueManager # Using the updated IsVenueManager
 from .models import Venue
 from .serializers import VenueSerializer
 from .filters import VenueFilter # Import VenueFilter
@@ -83,17 +80,24 @@ class VenueViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
+        - Create: Authenticated Admin or VenueManager.
+        - Update/Delete: Authenticated Admin or VenueManager (who is the venue's owner).
+        - List/Retrieve: AllowAny.
         """
         if self.action == 'create':
-            # User must be Authenticated AND (IsVenueManager OR IsAdminUser)
-            self.permission_classes = [IsAuthenticated, IsVenueManagerOrAdmin]
+            self.permission_classes = [IsAuthenticated, (IsAdminUser | IsVenueManager)]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            # User must be Authenticated AND (Owner OR VenueManager OR Admin)
-            self.permission_classes = [IsAuthenticated, IsVenueModificationAllowed]
+            self.permission_classes = [IsAuthenticated, (IsAdminUser | IsVenueManager)]
         elif self.action in ['list', 'retrieve']:
-            # Read-only access for anyone.
-            self.permission_classes = [permissions.AllowAny] # Or IsAuthenticatedOrReadOnly / IsAuthenticated
+            self.permission_classes = [AllowAny]
         else:
-            # Default to deny, or admin only for other actions
-            self.permission_classes = [IsAdminUser] # Or permissions.DenyAll
+            self.permission_classes = [permissions.DenyAll]
         return [permission() for permission in self.permission_classes]
+
+    def perform_create(self, serializer):
+        """
+        Set the owner of the venue to the current user.
+        Admins creating venues are also marked as the owner unless logic is added
+        to allow them to assign a different owner.
+        """
+        serializer.save(owner=self.request.user)

@@ -2,10 +2,12 @@
 
 from django.db import migrations
 
+# Updated ROLES to match the new model definition
 ROLES = [
-    ('REGULAR_USER', 'Regular User'),
-    ('VENUE_MANAGER', 'Venue Manager'),
+    ('ADMIN', 'Admin'),
     ('EVENT_ORGANIZER', 'Event Organizer'),
+    ('VENUE_MANAGER', 'Venue Manager'),
+    ('CUSTOMER', 'Customer'),
 ]
 
 def populate_roles(apps, schema_editor):
