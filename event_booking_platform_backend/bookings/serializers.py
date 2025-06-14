@@ -30,7 +30,7 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only=True,
         help_text="Read-only. Key details of the event being booked."
     )
-    payment_status = serializers.CharField(read_only=True, help_text="Read-only. The status of the associated payment.")
+    payment_status = serializers.SerializerMethodField(help_text="Read-only. The status of the associated payment.")
     payment_details = PaymentSerializer(source='payment', read_only=True, help_text="Read-only. Detailed information about the associated payment.")
 
     # 'event' is for writing (expects Event ID).
@@ -61,7 +61,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'total_price',
             'price_per_ticket_at_booking',
             'user', # User is set by perform_create in the ViewSet, not taken from request payload directly.
-            'payment_status',
+            # 'payment_status' is handled by SerializerMethodField now
             'payment_details',
         ]
         extra_kwargs = {
@@ -125,7 +125,7 @@ class BookingSerializer(serializers.ModelSerializer):
             # This is tricky because confirmed_tickets_count() on event includes all confirmed.
             # We need to adjust if this is an update to an existing booking.
 
-            currently_confirmed_for_event = event.confirmed_tickets_count()
+            currently_confirmed_for_event = event.active_tickets_count()
 
             # If this is an update to an existing booking that was already 'confirmed',
             # its tickets are already in `currently_confirmed_for_event`.
@@ -137,10 +137,21 @@ class BookingSerializer(serializers.ModelSerializer):
             # Effective number of tickets already booked by others (or by this booking if it wasn't confirmed)
             # This logic ensures that if a user is changing the number of tickets for their *own confirmed* booking,
             # the capacity check correctly accounts for the tickets they are releasing or adding.
-            other_confirmed_tickets = currently_confirmed_for_event - tickets_from_this_booking_pre_update
 
-            if other_confirmed_tickets + requested_tickets > effective_capacity:
-                available_tickets = effective_capacity - other_confirmed_tickets
+            # If it's an update, adjust the count of currently confirmed tickets
+            if self.instance and self.instance.pk:
+                # Subtract the original number of tickets for *this specific booking* from the total,
+                # as these tickets are being replaced by the 'requested_tickets'.
+                # This applies regardless of the original booking's status, as active_tickets_count includes pending_payment and confirmed.
+                # If the original booking was not counted in active_tickets_count (e.g. it was 'pending'), this subtraction might be incorrect.
+                # Let's ensure we only subtract if it was indeed part of the count.
+                if self.instance.status in [Booking.BookingStatus.CONFIRMED, Booking.BookingStatus.PENDING_PAYMENT]:
+                    currently_confirmed_for_event -= self.instance.number_of_tickets
+
+            # Now, currently_confirmed_for_event represents tickets from *other* bookings.
+            # Add the requested tickets for the current operation.
+            if currently_confirmed_for_event + requested_tickets > effective_capacity:
+                available_tickets = effective_capacity - currently_confirmed_for_event
                 if available_tickets < 0: available_tickets = 0 # Ensure non-negative
                 raise serializers.ValidationError(
                     {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) remaining for event '{event.name}'."}
@@ -174,3 +185,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
 
         return data
+
+    def get_payment_status(self, obj):
+        if hasattr(obj, 'payment') and obj.payment:
+            return obj.payment.status
+        return "not_required" # Or None, depending on desired representation if no payment

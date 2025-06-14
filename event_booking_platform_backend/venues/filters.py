@@ -8,6 +8,7 @@ class VenueFilter(django_filters.FilterSet):
     max_price_per_hour = django_filters.NumberFilter(field_name='pricing_per_hour', lookup_expr='lte')
     min_price_per_day = django_filters.NumberFilter(field_name='pricing_per_day', lookup_expr='gte')
     max_price_per_day = django_filters.NumberFilter(field_name='pricing_per_day', lookup_expr='lte')
+    name = django_filters.CharFilter(field_name='name', lookup_expr='icontains') # Added for partial name search
     address_contains = django_filters.CharFilter(field_name='address', lookup_expr='icontains')
     # You can also add filtering for amenities if it's a JSONField with specific keys
     # For example, if amenities is like {"wifi": true, "parking": false}:
@@ -24,22 +25,19 @@ class VenueFilter(django_filters.FilterSet):
         if not amenity_names:
             return queryset
 
-        # Create a Q object for each amenity name to check if it's contained in the JSON list
-        # This effectively creates an OR condition for each amenity name.
-        # For a venue to match, its 'amenities' list must contain AT LEAST ONE of the provided names.
-        # Note: This uses 'amenities__contains' which expects a single item or a sublist.
-        # If 'amenities' stores ["wifi", "projector"], then amenities__contains='wifi' works.
-        # If we want to check if *any* of ["wifi", "screen"] are present, we need OR logic.
-        from django.db.models import Q
-        query = Q()
-        for amenity_name in amenity_names:
-            query |= Q(amenities__contains=amenity_name) # Check if the amenity is in the list
+        # Manual filtering for SQLite compatibility with JSONField contains
+        venue_ids = []
+        for venue in queryset:
+            if isinstance(venue.amenities, list):
+                if any(amenity in venue.amenities for amenity in amenity_names):
+                    venue_ids.append(venue.id)
 
-        return queryset.filter(query).distinct() # .distinct() if multiple OR conditions could match the same venue
+        return queryset.filter(id__in=venue_ids)
 
     class Meta:
         model = Venue
         fields = [
+            'name', # Added name filter
             'capacity',
             'is_available',
             'min_price_per_hour',

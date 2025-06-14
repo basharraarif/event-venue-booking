@@ -162,9 +162,9 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         if booking.total_price > 0:
             # Paid event: create Payment record, set booking status to PENDING_PAYMENT
-            booking.payment_status = 'pending'
+            # booking.payment_status = 'pending' # This field is removed from Booking model
             booking.status = Booking.BookingStatus.PENDING_PAYMENT
-            booking.save(update_fields=['payment_status', 'status']) # Save these fields first
+            booking.save(update_fields=['status']) # Save status field first
 
             # Determine currency
             currency = 'USD' # Default currency
@@ -180,21 +180,22 @@ class BookingViewSet(viewsets.ModelViewSet):
                 status='pending', # Payment model's status
                 # payment_method will be handled by Stripe, not needed here
             )
-            logger.info(f"Pending Payment record created for booking {booking.id} (User: {booking.user.id}). Booking status: {booking.status}, Payment status: {booking.payment_status}")
-            email_subject_template = 'emails/booking_pending_payment_subject.txt'
-            email_html_template = 'emails/booking_pending_payment_body.html'
-            email_text_template = 'emails/booking_pending_payment_body.txt'
+            logger.info(f"Pending Payment record created for booking {booking.id} (User: {booking.user.id}). Booking status: {booking.status}") # Removed payment_status
+            email_subject_template = 'emails/booking_pending_subject.txt' # Corrected template name
+            email_html_template = 'emails/booking_pending_body.html'
+            email_text_template = 'emails/booking_pending_body.txt'
         else:
-            # Free event: set booking status to CONFIRMED, payment_status to not_required
-            booking.payment_status = 'not_required'
+            # Free event: set booking status to CONFIRMED
+            # booking.payment_status = 'not_required' # This field is removed from Booking model
             booking.status = Booking.BookingStatus.CONFIRMED
-            booking.save(update_fields=['payment_status', 'status'])
-            logger.info(f"Free booking {booking.id} confirmed (User: {booking.user.id}). Payment status: {booking.payment_status}")
+            booking.save(update_fields=['status'])
+            logger.info(f"Free booking {booking.id} confirmed (User: {booking.user.id}).") # Removed payment_status from log
             email_subject_template = 'emails/booking_confirmation_subject.txt' # Use confirmation for free events
             email_html_template = 'emails/booking_confirmation_body.html'
             email_text_template = 'emails/booking_confirmation_body.txt'
 
         # Send appropriate email based on whether payment is required
+        logger.info(f"Attempting to send email for booking {booking.id} with subject template {email_subject_template} inside perform_create.")
         try:
             send_booking_related_email(
                 booking=booking,
@@ -202,8 +203,9 @@ class BookingViewSet(viewsets.ModelViewSet):
                 body_html_template_name=email_html_template,
                 body_text_template_name=email_text_template
             )
+            logger.info(f"Call to send_booking_related_email completed for booking {booking.id}.")
         except Exception as e:
-            logger.error(f"Failed to send booking email for Booking ID {booking.id}: {e}")
+            logger.error(f"Failed to send booking email for Booking ID {booking.id} within perform_create: {e}")
 
     def perform_update(self, serializer):
         """
