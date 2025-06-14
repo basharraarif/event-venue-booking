@@ -21,17 +21,6 @@ class Booking(models.Model):
         choices=BookingStatus.choices,
         default=BookingStatus.PENDING
     )
-    payment_status_choices = [
-        ('pending', 'Pending'),
-        ('paid', 'Paid'),
-        ('failed', 'Failed'),
-        ('not_required', 'Not Required')
-    ]
-    payment_status = models.CharField(
-        max_length=20,
-        choices=payment_status_choices,
-        default='not_required'
-    )
     price_per_ticket_at_booking = models.DecimalField(
         max_digits=10,
         decimal_places=2,

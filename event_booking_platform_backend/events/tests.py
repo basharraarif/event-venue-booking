@@ -145,8 +145,11 @@ class BaseViewSetTests(APITestCase):
         self.client = APIClient()
         self.admin_user = User.objects.create_superuser('admin_events', 'adminevents@example.com', 'adminpass')
         # Create users with specific roles
-        self.organizer_user = User.objects.create_user('organizer_user', 'organizer@example.com', 'orgpass', roles=User.Roles.ORGANIZER)
-        self.customer_user = User.objects.create_user('customer_user', 'customer@example.com', 'custpass', roles=User.Roles.CUSTOMER)
+        from core.models import Role # Import Role model
+        self.organizer_user = User.objects.create_user('organizer_user', 'organizer@example.com', 'orgpass')
+        self.organizer_user.roles.add(Role.objects.get_or_create(name=Role.EVENT_ORGANIZER)[0])
+        self.customer_user = User.objects.create_user('customer_user', 'customer@example.com', 'custpass')
+        self.customer_user.roles.add(Role.objects.get_or_create(name=Role.CUSTOMER)[0])
 
         # Assign owner to venue for consistency if Venue model requires it (it does now)
         self.venue_owner = User.objects.create_user('venue_owner_for_events', 'vo_events@example.com', 'vopass')

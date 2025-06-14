@@ -7,7 +7,7 @@ User = get_user_model()
 class CoreModelTests(TestCase):
 
     def test_create_role(self):
-        role = Role.objects.create(name='TEST_ROLE', defaults={'name': 'Test Role Display'})
+        role = Role.objects.create(name='TEST_ROLE')
         # In the model, choices are for the 'name' field directly.
         # If get_name_display() is preferred for __str__, that's fine.
         # Here, we check the 'name' field value.
@@ -15,10 +15,10 @@ class CoreModelTests(TestCase):
         # If you have a display name method/property and want to test it:
         # self.assertEqual(role.get_name_display(), 'Test Role Display') # Example if choices had display names like that
         # For the current Role model, choices are ('DB_VALUE', 'Human Readable Name')
-        # So, if a role is created with name='REGULAR_USER', its get_name_display() will be 'Regular User'.
+        # So, if a role is created with name='CUSTOMER', its get_name_display() will be 'Customer'.
 
-        regular_user_role = Role.objects.create(name='REGULAR_USER')
-        self.assertEqual(regular_user_role.get_name_display(), 'Regular User')
+        customer_role, _ = Role.objects.get_or_create(name=Role.CUSTOMER) # Use get_or_create
+        self.assertEqual(customer_role.get_name_display(), 'Customer')
 
 
     def test_create_user(self):

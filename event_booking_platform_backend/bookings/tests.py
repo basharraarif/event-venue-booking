@@ -10,13 +10,14 @@ from rest_framework.test import APITestCase, APIClient
 from .models import Booking
 from events.models import Event, Category
 from venues.models import Venue
+from core.models import Role # Import Role model
 from .serializers import BookingSerializer
 
 User = get_user_model()
 
 class BookingModelTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testbooker', password='password123')
+        self.user = User.objects.create_user(username='testbooker', email='testbooker@example.com', password='password123')
         self.venue = Venue.objects.create(name='Test Venue for Booking', address='123 Booking St', capacity=100)
         self.event = Event.objects.create(
             name="Test Event for Booking",
@@ -97,7 +98,8 @@ class BookingModelTests(APITestCase):
 
 class BookingSerializerTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='booking_serializer_user', password='password', roles=User.Roles.CUSTOMER)
+        self.user = User.objects.create_user(username='booking_serializer_user', password='password')
+        self.user.roles.add(Role.objects.get_or_create(name=Role.CUSTOMER)[0])
         self.venue = Venue.objects.create(name='Booking Serializer Venue', address='1 Test Rd', capacity=50)
         self.event = Event.objects.create(
             name='Event for BookingSerializer', venue=self.venue, organizer=self.user,
@@ -138,7 +140,7 @@ class BookingSerializerTests(APITestCase):
         self.assertEqual(Decimal(data['payment_details']['amount']), self.booking.total_price)
 
     def test_deserialize_booking_creation(self):
-        other_user = User.objects.create_user(username='otherbooker', password='pwd')
+        other_user = User.objects.create_user(username='otherbooker', email='otherbooker@example.com', password='pwd')
         data = {
             'event': self.event.id,
             # 'user' field will be set by perform_create in ViewSet, not passed directly for create
@@ -196,7 +198,7 @@ class BookingSerializerTests(APITestCase):
 class BookingCapacityValidationTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
-        self.booker = User.objects.create_user(username='capacity_booker', password='password')
+        self.booker = User.objects.create_user(username='capacity_booker', email='capacity_booker@example.com', password='password')
         self.venue_small = Venue.objects.create(name='Small Venue', address='1 Small St', capacity=5, owner=self.booker) # Venue capacity 5
         self.event_at_small_venue = Event.objects.create(
             name="Event at Small Venue",
@@ -224,7 +226,8 @@ class BookingCapacityValidationTests(APITestCase):
         response = self.client.post(self.list_create_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('number_of_tickets', response.data)
-        self.assertIn('Not enough tickets available', response.data['number_of_tickets'][0])
+        expected_error_message = f"Booking exceeds event capacity. Only 5 ticket(s) remaining for event '{self.event_at_small_venue.name}'."
+        self.assertIn(expected_error_message, response.data['number_of_tickets'][0])
 
     def test_booking_exceeds_capacity_with_existing_bookings(self):
         """Test that new bookings are rejected if existing bookings fill up capacity."""
@@ -235,11 +238,13 @@ class BookingCapacityValidationTests(APITestCase):
         response = self.client.post(self.list_create_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('number_of_tickets', response.data)
-        self.assertIn('Only 2 ticket(s) remaining', response.data['number_of_tickets'][0])
+        expected_error_message = f"Booking exceeds event capacity. Only 2 ticket(s) remaining for event '{self.event_at_small_venue.name}'."
+        self.assertIn(expected_error_message, response.data['number_of_tickets'][0])
 
     def test_booking_at_full_capacity(self):
         """Test booking exactly up to capacity."""
-        Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=3, status=Booking.BookingStatus.PENDING)
+        # Create a confirmed booking to ensure it's counted by active_tickets_count
+        Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=3, status=Booking.BookingStatus.CONFIRMED)
 
         data = {'event': self.event_at_small_venue.id, 'number_of_tickets': 2} # Book remaining 2 (Total 5 == Capacity 5)
         response = self.client.post(self.list_create_url, data, format='json')
@@ -249,34 +254,39 @@ class BookingCapacityValidationTests(APITestCase):
         data_exceed = {'event': self.event_at_small_venue.id, 'number_of_tickets': 1}
         response_exceed = self.client.post(self.list_create_url, data_exceed, format='json')
         self.assertEqual(response_exceed.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Only 0 ticket(s) remaining', response_exceed.data['number_of_tickets'][0])
+        expected_error_message = f"Booking exceeds event capacity. Only 0 ticket(s) remaining for event '{self.event_at_small_venue.name}'."
+        self.assertIn(expected_error_message, response_exceed.data['number_of_tickets'][0])
 
 
     def test_cancelled_bookings_do_not_count_towards_capacity(self):
         """Test that cancelled bookings are not counted in the capacity check."""
-        # Fill capacity with confirmed and pending bookings
+        # Fill capacity with confirmed bookings
         Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=2, status=Booking.BookingStatus.CONFIRMED)
-        Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=1, status=Booking.BookingStatus.PENDING)
+        # Create a PENDING_PAYMENT booking as this is counted by active_tickets_count
+        # This user will be different to avoid unique_together constraint if user can book same event once.
+        other_user_temp = User.objects.create_user(username='other_temp_user', password='password')
+        Booking.objects.create(event=self.event_at_small_venue, user=other_user_temp, number_of_tickets=1, status=Booking.BookingStatus.PENDING_PAYMENT)
         # Create a cancelled booking for 2 tickets
         Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=2, status=Booking.BookingStatus.CANCELLED)
 
-        # Currently 2 (confirmed) + 1 (pending) = 3 tickets booked against capacity 5. Remaining = 2.
+        # Currently 2 (confirmed) + 1 (pending_payment) = 3 tickets booked against capacity 5. Remaining = 2.
         data = {'event': self.event_at_small_venue.id, 'number_of_tickets': 2}
         response = self.client.post(self.list_create_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED) # Should succeed
 
-        # Now try to book 1 more, which should fail (3+2+1 = 6 > 5)
+        # Now try to book 1 more, which should fail (2 confirmed + 1 pending_payment + 2 newly confirmed + 1 attempted = 6 > 5)
         data_fail = {'event': self.event_at_small_venue.id, 'number_of_tickets': 1}
         response_fail = self.client.post(self.list_create_url, data_fail, format='json')
         self.assertEqual(response_fail.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Only 0 ticket(s) remaining', response_fail.data['number_of_tickets'][0])
+        expected_error_message = f"Booking exceeds event capacity. Only 0 ticket(s) remaining for event '{self.event_at_small_venue.name}'."
+        self.assertIn(expected_error_message, response_fail.data['number_of_tickets'][0])
 
 
     def test_update_booking_exceeds_capacity(self):
         """Test updating a booking to exceed venue capacity."""
         booking_to_update = Booking.objects.create(event=self.event_at_small_venue, user=self.booker, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
         # Other bookings take up 3 spots (1+3=4, remaining 1)
-        other_user = User.objects.create_user(username='other_booker_cap', password='password')
+        other_user = User.objects.create_user(username='other_booker_cap', email='other_booker_cap@example.com', password='password')
         Booking.objects.create(event=self.event_at_small_venue, user=other_user, number_of_tickets=3, status=Booking.BookingStatus.CONFIRMED)
 
         url = reverse('booking-detail', kwargs={'pk': booking_to_update.pk})
@@ -288,15 +298,18 @@ class BookingCapacityValidationTests(APITestCase):
         response = self.client.patch(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('number_of_tickets', response.data)
-        self.assertIn("Only 1 ticket(s) remaining", response.data['number_of_tickets'][0])
+        expected_error_message = f"Booking exceeds event capacity. Only 2 ticket(s) remaining for event '{self.event_at_small_venue.name}'." # Corrected expected available tickets
+        self.assertIn(expected_error_message, response.data['number_of_tickets'][0])
 
 
 class BookingViewSetTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         self.admin_user = User.objects.create_superuser('admin_bookings', 'adminbookings@example.com', 'adminpass')
-        self.user1 = User.objects.create_user('booker1', 'booker1@example.com', 'userpass1', roles=User.Roles.CUSTOMER)
-        self.user2 = User.objects.create_user('booker2', 'booker2@example.com', 'userpass2', roles=User.Roles.CUSTOMER)
+        self.user1 = User.objects.create_user('booker1', 'booker1@example.com', 'userpass1')
+        self.user1.roles.add(Role.objects.get_or_create(name=Role.CUSTOMER)[0])
+        self.user2 = User.objects.create_user('booker2', 'booker2@example.com', 'userpass2')
+        self.user2.roles.add(Role.objects.get_or_create(name=Role.CUSTOMER)[0])
 
         # Ensure venue has an owner
         self.venue_owner = User.objects.create_user('venue_owner_bookings', 'vob@example.com', 'vopass')

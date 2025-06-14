@@ -179,32 +179,32 @@ class TestVenueViewSetPermissions: # Renamed for clarity
 #     def test_list_venues(self):
 #         url = reverse("venue-list")
 #         response = self.client.get(url)
-+#
-+#         assert response.status_code == status.HTTP_200_OK
-+#         response_data = response.data
-+#         assert isinstance(response_data, list)
-+#         assert len(response_data) >= 3
-+#
-+#         venue_names_in_response = [venue['name'] for venue in response_data]
-+#         assert "Alpha Place" in venue_names_in_response
-+#         assert "Beta Test Hall" in venue_names_in_response
-+#
-+#     def test_retrieve_venue(self):
-+#         url = reverse("venue-detail", kwargs={'pk': self.venue1.pk})
-+#         response = self.client.get(url)
-+#
-+#         assert response.status_code == status.HTTP_200_OK
-+#         assert response.data['name'] == self.venue1.name
-+#         assert response.data['capacity'] == self.venue1.capacity
-+#
-+#     def test_create_venue_valid(self):
-+#         # This user needs to be VenueManager or Admin
-+#         # For simplicity, assume self.user is made a VenueManager for this test context if not admin
-+#         if not self.user.is_staff: # if not admin, make venue manager for this test
-+#             self.user.roles = User.Roles.VENUE_MANAGER
-+#             self.user.save()
-+
-+#         url = reverse("venue-list")
+#
+#         assert response.status_code == status.HTTP_200_OK
+#         response_data = response.data
+#         assert isinstance(response_data, list)
+#         assert len(response_data) >= 3
+#
+#         venue_names_in_response = [venue['name'] for venue in response_data]
+#         assert "Alpha Place" in venue_names_in_response
+#         assert "Beta Test Hall" in venue_names_in_response
+#
+#     def test_retrieve_venue(self):
+#         url = reverse("venue-detail", kwargs={'pk': self.venue1.pk})
+#         response = self.client.get(url)
+#
+#         assert response.status_code == status.HTTP_200_OK
+#         assert response.data['name'] == self.venue1.name
+#         assert response.data['capacity'] == self.venue1.capacity
+#
+#     def test_create_venue_valid(self):
+#         # This user needs to be VenueManager or Admin
+#         # For simplicity, assume self.user is made a VenueManager for this test context if not admin
+#         if not self.user.is_staff: # if not admin, make venue manager for this test
+#             self.user.roles = User.Roles.VENUE_MANAGER
+#             self.user.save()
+# #
+#         url = reverse("venue-list")
 #         data = {
 #             "name": "Delta New Venue", "address": "4 Delta Way", "capacity": 120,
 #             "amenities": ["wifi", "projector"], "pricing_per_hour": "60.00",
@@ -223,7 +223,7 @@ class TestVenueViewSetPermissions: # Renamed for clarity
 #         if not self.user.is_staff:
 #             self.user.roles = User.Roles.VENUE_MANAGER
 #             self.user.save()
-+
+# #
 #         url = reverse("venue-list")
 #         data = { "address": "Invalid Venue St", "capacity": 50, "owner": self.user.id } # Name is missing
 #         response = self.client.post(url, data, format='json')

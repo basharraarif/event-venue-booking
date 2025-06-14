@@ -16,7 +16,8 @@ from core.permissions import (
 )
 
 # Import models needed for creating test objects for object-level permissions
-from events.models import Event, Category, Venue
+from events.models import Event, Category
+from venues.models import Venue
 from bookings.models import Booking
 from decimal import Decimal
 
@@ -223,15 +224,16 @@ class PermissionTests(TestCase):
 # The _check_permission helper was updated to take a 'method' argument.
 # Ensure Role.ADMIN, Role.CUSTOMER etc. constants are correctly used if defined in models.py.
 # The test setup uses Role.objects.get_or_create(name=Role.ADMIN) which implies Role.ADMIN is a string like 'ADMIN'.
-# This matches the constants added to the Role model.The `core/tests/test_permissions.py` file has been successfully overwritten with updated tests for the new and modified permission classes.
-Key changes:
--   Role setup in `setUpTestData` now uses the new role names (`ADMIN`, `CUSTOMER`, etc.) and `Role.ADMIN` style constants.
--   Tests for deleted/refactored permissions were removed.
--   Tests for `IsCustomer`, `IsEventOrganizer`, `IsVenueManager` were added/updated to reflect their new logic, including object-level checks using actual model instances.
--   Tests for generic permissions like `IsAdminOrReadOnly`, `IsOwnerOrAdmin`, `IsOwnerOrReadOnly`, and `IsAdminUser` were kept or updated.
--   A helper `_check_permission` was refined.
--   Tests for unauthenticated users were added.
-
-This largely completes the testing for `core/permissions.py`. The next part of Step 6 is to update view tests.
-
-I will now submit the report as this is the last turn.
+# This matches the constants added to the Role model.
+# The `core/tests/test_permissions.py` file has been successfully overwritten with updated tests for the new and modified permission classes.
+# Key changes:
+# -   Role setup in `setUpTestData` now uses the new role names (`ADMIN`, `CUSTOMER`, etc.) and `Role.ADMIN` style constants.
+# -   Tests for deleted/refactored permissions were removed.
+# -   Tests for `IsCustomer`, `IsEventOrganizer`, `IsVenueManager` were added/updated to reflect their new logic, including object-level checks using actual model instances.
+# -   Tests for generic permissions like `IsAdminOrReadOnly`, `IsOwnerOrAdmin`, `IsOwnerOrReadOnly`, and `IsAdminUser` were kept or updated.
+# -   A helper `_check_permission` was refined.
+# -   Tests for unauthenticated users were added.
+#
+# This largely completes the testing for `core/permissions.py`. The next part of Step 6 is to update view tests.
+#
+# I will now submit the report as this is the last turn.

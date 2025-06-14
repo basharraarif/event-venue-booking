@@ -53,15 +53,15 @@ class EventSerializer(serializers.ModelSerializer):
 
     # Schema hints for properties/methods
     effective_capacity = serializers.SerializerMethodField() # Changed to SerializerMethodField
-    confirmed_tickets_count = serializers.SerializerMethodField() # Changed to SerializerMethodField
+    active_tickets_count = serializers.SerializerMethodField() # Changed to SerializerMethodField
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_effective_capacity(self, obj):
         return obj.effective_capacity
 
     @extend_schema_field(OpenApiTypes.INT)
-    def get_confirmed_tickets_count(self, obj):
-        return obj.confirmed_tickets_count()
+    def get_active_tickets_count(self, obj):
+        return obj.active_tickets_count()
 
 
     class Meta:
@@ -74,10 +74,10 @@ class EventSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'status', 'ticket_price',
             'max_capacity',
             'effective_capacity',
-            'confirmed_tickets_count',
+            'active_tickets_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = [ # Removed effective_capacity and confirmed_tickets_count
+        read_only_fields = [ # Removed effective_capacity and active_tickets_count
             'created_at', 'updated_at',
             'organizer_username', 'venue_name',
         ]
@@ -125,8 +125,8 @@ class EventSerializer(serializers.ModelSerializer):
             # Need to access confirmed_tickets_count via the instance method
             # This count should reflect the state *before* this update is applied.
             # If status is also being updated in the same request, this could be tricky.
-            # For simplicity, assume confirmed_tickets_count() on instance is pre-update state.
-            instance_confirmed_tickets = self.instance.confirmed_tickets_count()
+            # For simplicity, assume active_tickets_count() on instance is pre-update state.
+            instance_confirmed_tickets = self.instance.active_tickets_count()
             if max_capacity_value < instance_confirmed_tickets:
                 raise serializers.ValidationError(
                     {'max_capacity': f"Event max capacity ({max_capacity_value}) cannot be less than already confirmed tickets ({instance_confirmed_tickets})."}
