@@ -1,34 +1,28 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import DashboardPage from './page'; // Adjust path if your test file is not in the same dir
+import DashboardPage from './page';
 import { useAuth } from '@/contexts/AuthContext';
 import bookingService from '@/services/bookingService';
 import eventService from '@/services/eventService';
 import venueService from '@/services/venueService';
 
-// Mock services
 jest.mock('@/services/bookingService');
 jest.mock('@/services/eventService');
 jest.mock('@/services/venueService');
 
-// Mock useAuth hook
 jest.mock('@/contexts/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
-const mockGetMyBookings = bookingService.getMyBookings as jest.Mock;
-const mockGetEvents = eventService.getEvents as jest.Mock;
-const mockGetVenues = venueService.getVenues as jest.Mock;
 const mockUseAuth = useAuth as jest.Mock;
 
 describe('DashboardPage', () => {
   beforeEach(() => {
-    mockGetMyBookings.mockClear();
-    mockGetEvents.mockClear();
-    mockGetVenues.mockClear();
+    if (bookingService?.getMyBookings) (bookingService.getMyBookings as jest.Mock).mockClear().mockResolvedValue({ bookings: [], total: 0 });
+    if (eventService?.getEvents) (eventService.getEvents as jest.Mock).mockClear().mockResolvedValue({ events: [], total: 0 });
+    if (venueService?.getVenues) (venueService.getVenues as jest.Mock).mockClear().mockResolvedValue({ results: [], total: 0 });
     mockUseAuth.mockClear();
   });
-
   const mockUserCustomer = { id: 'user-cust-123', username: 'customer1', roles: ['customer'] };
   const mockUserOrganizer = { id: 'user-org-456', username: 'organizer1', roles: ['organizer'] };
   const mockUserVenueManager = { id: 'user-vm-789', username: 'manager1', roles: ['venue_manager'] };
@@ -49,9 +43,9 @@ describe('DashboardPage', () => {
 
   test('fetches and displays "My Bookings" for any authenticated user', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserCustomer });
-    mockGetMyBookings.mockResolvedValue([{ id: 'b1', event_details: { name: 'My Booked Event' }, number_of_tickets: 2, total_price: '50.00', status: 'confirmed' }]);
-    mockGetEvents.mockResolvedValue([]); // No events for customer
-    mockGetVenues.mockResolvedValue({ results: [] }); // No venues for customer
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([{ id: 'b1', event_details: { name: 'My Booked Event' }, number_of_tickets: 2, total_price: '50.00', status: 'confirmed' }]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([]); // No events for customer
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [] }); // No venues for customer
 
     render(<DashboardPage />);
 
@@ -59,14 +53,14 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/my bookings/i)).toBeInTheDocument();
       expect(screen.getByText(/my booked event/i)).toBeInTheDocument();
     });
-    expect(mockGetMyBookings).toHaveBeenCalledTimes(1);
+    expect(bookingService.getMyBookings as jest.Mock).toHaveBeenCalledTimes(1);
   });
 
   test('displays "My Events" section and fetches events for an organizer', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserOrganizer });
-    mockGetMyBookings.mockResolvedValue([]);
-    mockGetEvents.mockResolvedValue([{ id: 'e1', name: 'My Organized Event', start_time: new Date().toISOString(), status: 'upcoming' }]);
-    mockGetVenues.mockResolvedValue({ results: [] });
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([{ id: 'e1', name: 'My Organized Event', start_time: new Date().toISOString(), status: 'upcoming' }]);
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [] });
 
     render(<DashboardPage />);
 
@@ -74,27 +68,27 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/my events \(organized by me\)/i)).toBeInTheDocument();
       expect(screen.getByText(/my organized event/i)).toBeInTheDocument();
     });
-    expect(mockGetEvents).toHaveBeenCalledWith({ organizer: mockUserOrganizer.id });
+    expect(eventService.getEvents as jest.Mock).toHaveBeenCalledWith({ organizer: mockUserOrganizer.id });
   });
 
   test('does not display "My Events" section for a non-organizer', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserCustomer });
-    mockGetMyBookings.mockResolvedValue([]);
-    mockGetEvents.mockResolvedValue([]);
-    mockGetVenues.mockResolvedValue({ results: [] });
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([]);
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [] });
 
     render(<DashboardPage />);
 
-    await waitFor(() => expect(mockGetMyBookings).toHaveBeenCalled()); // Wait for bookings to be called at least
+    await waitFor(() => expect(bookingService.getMyBookings as jest.Mock).toHaveBeenCalled()); // Wait for bookings to be called at least
     expect(screen.queryByText(/my events \(organized by me\)/i)).not.toBeInTheDocument();
-    expect(mockGetEvents).not.toHaveBeenCalled();
+    expect(eventService.getEvents as jest.Mock).not.toHaveBeenCalled();
   });
 
   test('displays "My Venues" section and fetches venues for a venue manager', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserVenueManager });
-    mockGetMyBookings.mockResolvedValue([]);
-    mockGetEvents.mockResolvedValue([]);
-    mockGetVenues.mockResolvedValue({ results: [{ id: 'v1', name: 'My Managed Venue', capacity: 100 }] });
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([]);
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [{ id: 'v1', name: 'My Managed Venue', capacity: 100 }] });
 
     render(<DashboardPage />);
 
@@ -102,27 +96,27 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/my venues \(managed by me\)/i)).toBeInTheDocument();
       expect(screen.getByText(/my managed venue/i)).toBeInTheDocument();
     });
-    expect(mockGetVenues).toHaveBeenCalledWith({ owner: mockUserVenueManager.id });
+    expect(venueService.getVenues as jest.Mock).toHaveBeenCalledWith({ owner: mockUserVenueManager.id });
   });
 
   test('does not display "My Venues" section for a non-venue manager', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserCustomer });
-    mockGetMyBookings.mockResolvedValue([]);
-    mockGetEvents.mockResolvedValue([]);
-    mockGetVenues.mockResolvedValue({ results: [] });
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([]);
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [] });
 
     render(<DashboardPage />);
 
-    await waitFor(() => expect(mockGetMyBookings).toHaveBeenCalled());
+    await waitFor(() => expect(bookingService.getMyBookings as jest.Mock).toHaveBeenCalled());
     expect(screen.queryByText(/my venues \(managed by me\)/i)).not.toBeInTheDocument();
-    expect(mockGetVenues).not.toHaveBeenCalled();
+    expect(venueService.getVenues as jest.Mock).not.toHaveBeenCalled();
   });
 
   test('displays all relevant sections for a user with multiple roles', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserAllRoles });
-    mockGetMyBookings.mockResolvedValue([{ id: 'b1', event_details: { name: 'Multi-role Booking' }, number_of_tickets: 1, total_price: '20.00', status: 'pending' }]);
-    mockGetEvents.mockResolvedValue([{ id: 'e1', name: 'Multi-role Event', start_time: new Date().toISOString(), status: 'upcoming' }]);
-    mockGetVenues.mockResolvedValue({ results: [{ id: 'v1', name: 'Multi-role Venue', capacity: 200 }] });
+    (bookingService.getMyBookings as jest.Mock).mockResolvedValue([{ id: 'b1', event_details: { name: 'Multi-role Booking' }, number_of_tickets: 1, total_price: '20.00', status: 'pending' }]);
+    (eventService.getEvents as jest.Mock).mockResolvedValue([{ id: 'e1', name: 'Multi-role Event', start_time: new Date().toISOString(), status: 'upcoming' }]);
+    (venueService.getVenues as jest.Mock).mockResolvedValue({ results: [{ id: 'v1', name: 'Multi-role Venue', capacity: 200 }] });
 
     render(<DashboardPage />);
 
@@ -134,14 +128,14 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/my venues \(managed by me\)/i)).toBeInTheDocument();
       expect(screen.getByText(/multi-role venue/i)).toBeInTheDocument();
     });
-    expect(mockGetMyBookings).toHaveBeenCalledTimes(1);
-    expect(mockGetEvents).toHaveBeenCalledWith({ organizer: mockUserAllRoles.id });
-    expect(mockGetVenues).toHaveBeenCalledWith({ owner: mockUserAllRoles.id });
+    expect(bookingService.getMyBookings as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(eventService.getEvents as jest.Mock).toHaveBeenCalledWith({ organizer: mockUserAllRoles.id });
+    expect(venueService.getVenues as jest.Mock).toHaveBeenCalledWith({ owner: mockUserAllRoles.id });
   });
 
   test('shows error message for bookings if fetching fails', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, user: mockUserCustomer });
-    mockGetMyBookings.mockRejectedValueOnce(new Error('Failed to load bookings'));
+    (bookingService.getMyBookings as jest.Mock).mockRejectedValueOnce(new Error('Failed to load bookings'));
     render(<DashboardPage />);
     await waitFor(() => {
       expect(screen.getByText(/failed to load your bookings/i)).toBeInTheDocument();

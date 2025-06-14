@@ -211,60 +211,6 @@ const DashboardPage = () => {
               ))}
             </ul>
           )}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* My Events Section (for Organizers) */}
-      {user.roles && user.roles.includes('organizer') && (
-        <section className="mb-12 p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
-          <h2 className="text-2xl font-semibold text-gray-700 dark:text-white mb-6">My Events (Organized by Me)</h2>
-          {loadingEvents && <p>Loading your events...</p>}
-          {errorEvents && <p className="text-red-500">{errorEvents}</p>}
-          {!loadingEvents && !errorEvents && myEvents.length === 0 && (
-            <p className="text-gray-500 dark:text-gray-400">You have not organized any events yet.</p>
-          )}
-          {!loadingEvents && !errorEvents && myEvents.length > 0 && (
-            <ul className="space-y-4">
-              {myEvents.map(event => (
-                <li key={event.id} className="p-4 border dark:border-gray-700 rounded-md">
-                  <h3 className="text-lg font-medium text-indigo-600 dark:text-indigo-400">{event.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Date: {new Date(event.start_time).toLocaleDateString()}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Status: {event.status}</p>
-                  {/* Add Link to edit event page later */}
-                  <a href="#" className="text-blue-500 hover:underline mt-2 inline-block opacity-50 cursor-not-allowed">Edit Event (Soon)</a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {/* My Venues Section (for Venue Managers) */}
-      {user.roles && user.roles.includes('venue_manager') && (
-        <section className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
-          <h2 className="text-2xl font-semibold text-gray-700 dark:text-white mb-6">My Venues (Managed by Me)</h2>
-          {loadingVenues && <p>Loading your venues...</p>}
-          {errorVenues && <p className="text-red-500">{errorVenues}</p>}
-          {!loadingVenues && !errorVenues && myVenues.length === 0 && (
-            <p className="text-gray-500 dark:text-gray-400">You are not managing any venues yet.</p>
-          )}
-          {!loadingVenues && !errorVenues && myVenues.length > 0 && (
-            <ul className="space-y-4">
-              {myVenues.map(venue => (
-                <li key={venue.id} className="p-4 border dark:border-gray-700 rounded-md">
-                  <h3 className="text-lg font-medium text-indigo-600 dark:text-indigo-400">{venue.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Capacity: {venue.capacity}</p>
-                  {/* Add Link to edit venue page later */}
-                  <a href="#" className="text-blue-500 hover:underline mt-2 inline-block opacity-50 cursor-not-allowed">Edit Venue (Soon)</a>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       )}
     </div>

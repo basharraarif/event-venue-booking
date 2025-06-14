@@ -1,5 +1,6 @@
 // jest.setup.js
 import '@testing-library/jest-dom';
+import React from 'react'; // Import React for the Link mock
 
 // You can add other global setup configurations here if needed
 // For example, mocking global objects or functions:
@@ -37,3 +38,20 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 // If you need to mock specific environment variables:
 // process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3000/api/mock';
+
+// Mock next/link
+jest.mock('next/link', () => {
+  // eslint-disable-next-line react/display-name
+  return ({children, href, ...rest}) => { // REMOVED ALL TYPE ANNOTATIONS
+    return React.createElement('a', { href, ...rest }, children);
+  };
+});
+
+// Mock axios
+jest.mock('axios', () => ({
+  ...jest.requireActual('axios'), // Preserve other axios methods if needed
+  get: jest.fn(() => Promise.resolve({ data: {} })),
+  post: jest.fn(() => Promise.resolve({ data: {} })),
+  put: jest.fn(() => Promise.resolve({ data: {} })),
+  delete: jest.fn(() => Promise.resolve({ data: {} })),
+}));

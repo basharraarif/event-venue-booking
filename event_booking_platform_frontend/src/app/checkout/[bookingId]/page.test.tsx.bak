@@ -1,0 +1,150 @@
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { useParams } from 'next/navigation';
+import CheckoutPage from './page'; // Import the page component
+import PaymentService from '@/services/PaymentService';
+import bookingService from '@/services/bookingService'; // Corrected import
+import { useAuth } from '@/contexts/AuthContext';
+import { Elements } from '@stripe/react-stripe-js'; // To check if it's rendered
+// Intentionally NOT importing Link from next/link here for the mock to take effect
+
+// Mocks
+// jest.mock('next/link', () => { // REMOVING THIS LOCAL MOCK TO RELY ON GLOBAL ONE
+//   // eslint-disable-next-line react/display-name
+//   return ({children, href}: {children: React.ReactNode, href: string}) => {
+//     // console.log('Mocked Link href:', href);
+//     // console.log('Mocked Link children:', children);
+//     // Ensure children are valid ReactNode. If children is a function, it's likely an older pattern or specific usage.
+//     if (typeof children === 'function') {
+//        // This case might not be needed if Next.js <Link> typically doesn't use function as child for simple <a> wrapping
+//       return children({ onClick: jest.fn(), href });
+//     }
+//     return <a href={href}>{children}</a>;
+//   }
+// });
+
+jest.mock('next/navigation', () => ({
+  useParams: jest.fn(),
+  useRouter: jest.fn(() => ({ push: jest.fn() })), // Mock useRouter if used for navigation
+}));
+
+jest.mock('@/services/PaymentService');
+jest.mock('@/services/bookingService'); // Corrected mock path
+jest.mock('@/contexts/AuthContext');
+jest.mock('@stripe/react-stripe-js', () => ({
+  ...jest.requireActual('@stripe/react-stripe-js'),
+  Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
+  // PaymentElement might be part of CheckoutForm, which will be tested separately or mocked if needed here
+}));
+jest.mock('@/components/payments/CheckoutForm', () => () => <div data-testid="checkout-form-mock">Mocked Checkout Form</div>);
+jest.mock('@/components/common/LoadingSpinner', () => ({ message }: { message: string }) => <div data-testid="loading-spinner">{message}</div>);
+jest.mock('@/components/common/AlertMessage', () => ({ message, type }: { message: string, type: string }) => <div data-testid="alert-message" data-type={type}>{message}</div>);
+
+
+const mockUseParams = useParams as jest.Mock;
+const mockPaymentService = PaymentService as jest.Mocked<typeof PaymentService>;
+const mockBookingService = bookingService as jest.Mocked<typeof bookingService>; // Corrected mock
+const mockUseAuth = useAuth as jest.Mock;
+
+describe('CheckoutPage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseParams.mockReturnValue({ bookingId: 'booking123' });
+    mockUseAuth.mockReturnValue({ user: { id: 'user123' }, isAuthenticated: true, isLoading: false });
+
+    // Default successful mocks
+    mockBookingService.getBookingById.mockResolvedValue({
+      id: 'booking123',
+      event_details: { name: 'Test Event', ticket_price: '10.00' },
+      number_of_tickets: 2,
+      total_price: '20.00',
+      status: 'pending', // Crucial for allowing payment
+      price_per_ticket_at_booking: '10.00',
+    });
+    mockPaymentService.createPaymentIntent.mockResolvedValue({
+      client_secret: 'cs_test_secret',
+      payment_id: 'payment123',
+    });
+  });
+
+  it('renders loading state initially', () => {
+    mockUseAuth.mockReturnValueOnce({ user: null, isAuthenticated: false, isLoading: true }); // Auth loading
+    render(<CheckoutPage />);
+    expect(screen.getByTestId('loading-spinner')).toHaveTextContent('Loading checkout...');
+  });
+
+  it('fetches booking and payment intent, then renders Elements provider and CheckoutForm', async () => {
+    render(<CheckoutPage />);
+
+    // Initial loading for auth (even if false) + data fetching
+    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockBookingService.getBookingById).toHaveBeenCalledWith('booking123');
+    });
+    await waitFor(() => {
+      expect(mockPaymentService.createPaymentIntent).toHaveBeenCalledWith({ booking_id: 'booking123' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stripe-elements')).toBeInTheDocument();
+      expect(screen.getByTestId('checkout-form-mock')).toBeInTheDocument();
+      // Check for booking summary details
+      expect(screen.getByText('Test Event')).toBeInTheDocument();
+      expect(screen.getByText('20.00')).toBeInTheDocument(); // Total price
+    });
+  });
+
+  it('shows error if user is not authenticated', async () => {
+    mockUseAuth.mockReturnValueOnce({ user: null, isAuthenticated: false, isLoading: false });
+    render(<CheckoutPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent('Please log in to make a payment.');
+    });
+  });
+
+  it('shows error if bookingId is missing (though useParams mock always provides it here)', async () => {
+    mockUseParams.mockReturnValueOnce({ bookingId: null }); // Simulate missing bookingId
+    render(<CheckoutPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent('Booking ID is missing.');
+    });
+  });
+
+  it('shows error if booking status is not "pending"', async () => {
+    mockBookingService.getBookingById.mockResolvedValueOnce({
+      id: 'booking123',
+      event_details: { name: 'Test Event', ticket_price: '10.00' }, // Added event_details
+      number_of_tickets: 2, // Added
+      total_price: '20.00', // Added
+      status: 'confirmed', // Not pending
+      price_per_ticket_at_booking: '10.00', // Added
+    });
+    render(<CheckoutPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent('This booking is already confirmed and cannot be paid for.');
+    });
+  });
+
+  it('shows error if createPaymentIntent fails', async () => {
+    mockPaymentService.createPaymentIntent.mockResolvedValueOnce({
+      client_secret: '', // Empty client_secret indicates failure as per service logic
+      payment_id: '',
+      error: 'Failed to init gateway',
+    });
+    render(<CheckoutPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent('Failed to init gateway');
+    });
+  });
+
+  it('shows error if bookingService.getBookingById fails', async () => {
+    mockBookingService.getBookingById.mockRejectedValueOnce(new Error('Failed to fetch booking'));
+    render(<CheckoutPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(/An unexpected error occurred/);
+      // Error message might be generic from the catch block
+    });
+  });
+
+});

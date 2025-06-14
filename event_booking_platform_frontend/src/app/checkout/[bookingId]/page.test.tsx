@@ -1,4 +1,10 @@
 import React from 'react';
+jest.mock('next/link', () => {
+  return ({children, href}: {children: React.ReactNode, href: string}) => {
+    return <a href={href}>{children}</a>;
+  }
+});
+import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { useParams } from 'next/navigation';
 import CheckoutPage from './page'; // Import the page component
@@ -6,8 +12,23 @@ import PaymentService from '@/services/PaymentService';
 import bookingService from '@/services/bookingService'; // Corrected import
 import { useAuth } from '@/contexts/AuthContext';
 import { Elements } from '@stripe/react-stripe-js'; // To check if it's rendered
+// Intentionally NOT importing Link from next/link here for the mock to take effect
 
 // Mocks
+// jest.mock('next/link', () => { // REMOVING THIS LOCAL MOCK TO RELY ON GLOBAL ONE
+//   // eslint-disable-next-line react/display-name
+//   return ({children, href}: {children: React.ReactNode, href: string}) => {
+//     // console.log('Mocked Link href:', href);
+//     // console.log('Mocked Link children:', children);
+//     // Ensure children are valid ReactNode. If children is a function, it's likely an older pattern or specific usage.
+//     if (typeof children === 'function') {
+//        // This case might not be needed if Next.js <Link> typically doesn't use function as child for simple <a> wrapping
+//       return children({ onClick: jest.fn(), href });
+//     }
+//     return <a href={href}>{children}</a>;
+//   }
+// });
+
 jest.mock('next/navigation', () => ({
   useParams: jest.fn(),
   useRouter: jest.fn(() => ({ push: jest.fn() })), // Mock useRouter if used for navigation
@@ -99,8 +120,11 @@ describe('CheckoutPage', () => {
   it('shows error if booking status is not "pending"', async () => {
     mockBookingService.getBookingById.mockResolvedValueOnce({
       id: 'booking123',
+      event_details: { name: 'Test Event', ticket_price: '10.00' }, // Added event_details
+      number_of_tickets: 2, // Added
+      total_price: '20.00', // Added
       status: 'confirmed', // Not pending
-      // ... other fields
+      price_per_ticket_at_booking: '10.00', // Added
     });
     render(<CheckoutPage />);
     await waitFor(() => {

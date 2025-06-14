@@ -111,7 +111,7 @@ const PaymentStatusPage = () => {
 
     fetchStatus();
 
-  }, [stripe, paymentIntentClientSecret, localPaymentId, bookingId]); // Removed router from deps as it's not used for navigation here
+  }, [stripe, paymentIntentClientSecret, localPaymentId, bookingId]; // Removed router from deps as it's not used for navigation here
 
 
   if (loading) {
@@ -139,7 +139,6 @@ const PaymentStatusPage = () => {
         </Link>
       </div>
     </div>
-  );
 };
 
 // Wrap with Elements provider because useStripe() is used within PaymentStatusPage
@@ -150,7 +149,6 @@ const PaymentStatusPageWrapper = () => {
     <Elements stripe={stripePromise}>
       <PaymentStatusPage />
     </Elements>
-  );
-}
+};
 
 export default PaymentStatusPageWrapper;
