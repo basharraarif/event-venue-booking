@@ -1,0 +1,5 @@
+create_file_with_block
+event_booking_platform_backend/events/tests/__init__.py
+
+create_file_with_block
+event_booking_platform_backend/payments/tests/__init__.py

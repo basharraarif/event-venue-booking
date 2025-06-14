@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import VenuesPage from './page'; // Path to the VenuesPage component
 import { getVenues, Venue } from '@/services/venueService'; // Import the original service
@@ -11,6 +11,7 @@ const mockGetVenues = getVenues as jest.MockedFunction<typeof getVenues>;
 
 // Mock Next.js Link and other navigation components if not globally mocked in jest.setup.js
 jest.mock('next/link', () => {
+    // eslint-disable-next-line react/display-name
     return ({ children, href }) => <a href={href}>{children}</a>;
 });
 jest.mock('next/navigation', () => ({

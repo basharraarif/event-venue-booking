@@ -16,18 +16,19 @@
     "cy:run": "start-server-and-test dev http://localhost:3000 \"npx cypress run --reporter mochawesome --reporter-options 'reportDir=cypress/results,overwrite=false,html=false,json=true' --spec cypress/e2e/venues_list.cy.ts\""
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^2.7.3",
+    "@stripe/stripe-js": "^4.1.0",
     "@types/lodash": "^4.17.17",
     "axios": "^1.9.0",
     "lodash": "^4.17.21",
     "next": "14.2.5",
     "react": "^18",
-    "react-dom": "^18",
-    "@stripe/react-stripe-js": "^2.7.3",
-    "@stripe/stripe-js": "^4.1.0"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^29.5.12",
     "@types/node": "^20",
     "@types/react": "^18",
