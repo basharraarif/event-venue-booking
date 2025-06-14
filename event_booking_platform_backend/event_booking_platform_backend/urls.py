@@ -40,7 +40,7 @@ urlpatterns = [
     path("api/venues/", include("venues.urls")),  # Venue URLs
     path("api/events-management/", include("events.urls")),  # Event and Category URLs
     path("api/bookings/", include("bookings.urls")),  # Booking URLs
-    path("api/payments/", include("payments.urls")), # Payment URLs
+    path("api/payments/", include("payments.urls")),  # Payment URLs
     # API Schema & Docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

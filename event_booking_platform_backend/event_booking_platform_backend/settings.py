@@ -18,14 +18,14 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-import dj_database_url # Import dj_database_url
+# import dj_database_url # Import dj_database_url is handled by django-environ
 
 # Initialize django-environ
 env = environ.Env(
     # set casting, default value
     DEBUG=(bool, False),
-    DATABASE_URL=(str, 'sqlite:///' + str(BASE_DIR / "db.sqlite3")), # Default to SQLite if not set
-    REDIS_URL=(str, 'redis://localhost:6379/1'), # Default Redis URL
+    DATABASE_URL=(str, 'sqlite:///' + str(BASE_DIR / "db.sqlite3")),  # Default to SQLite if not set
+    REDIS_URL=(str, 'redis://localhost:6379/1'),  # Default Redis URL
 )
 
 # Assuming .env file is in the parent directory of settings.py (project root)
@@ -36,7 +36,7 @@ env = environ.Env(
 #     settings.py
 # you might need to adjust the path: Path(BASE_DIR).parent / '.env'
 # If your .env is in the same directory as manage.py (i.e., project root)
-ENV_PATH = BASE_DIR / ".env" # This is /app/event_booking_platform_backend/.env
+ENV_PATH = BASE_DIR / ".env"  # This is /app/event_booking_platform_backend/.env
 # Attempt to read .env file from the project root /app/.env as well for dockerized environments
 PROJECT_ROOT_ENV_PATH = BASE_DIR.parent / ".env"
 
@@ -71,20 +71,20 @@ DEBUG = env("DEBUG", default=False)
 # SECURITY WARNING: In production, ensure these are properly set!
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'] if DEBUG else [])
 
-CSRF_COOKIE_SECURE = not DEBUG # True in production (when DEBUG=False)
-SESSION_COOKIE_SECURE = not DEBUG # True in production
+CSRF_COOKIE_SECURE = not DEBUG  # True in production (when DEBUG=False)
+SESSION_COOKIE_SECURE = not DEBUG  # True in production
 
 # Optional: HTTPS related security settings (uncomment and configure if your site uses HTTPS)
 # SECURE_SSL_REDIRECT = not DEBUG
 # SECURE_HSTS_SECONDS = 31536000  # 1 year
 # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 # SECURE_HSTS_PRELOAD = True
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') # If behind a proxy that terminates SSL
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # If behind a proxy that terminates SSL
 
 
 # Remove or comment out the redundant hardcoded SECRET_KEY and DEBUG settings below
-# SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak' # Redundant
-# DEBUG = True # Redundant, use env('DEBUG', default=False)
+# SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak'  # Redundant
+# DEBUG = True  # Redundant, use env('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list(
     "ALLOWED_HOSTS", default=[]
@@ -106,7 +106,7 @@ INSTALLED_APPS = [
     "venues",
     "events",
     "bookings",
-    "payments", # Payments app
+    "payments",  # Payments app
     # Authentication apps
     "rest_framework.authtoken",
     "dj_rest_auth",
@@ -121,9 +121,9 @@ SITE_ID = 1  # Required by django-allauth
 
 # Django Allauth specific settings (optional, but recommended for dj_rest_auth.registration)
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Can be 'optional' or 'mandatory' for development
-# ACCOUNT_AUTHENTICATION_METHOD = 'username_email' # Deprecated
+# ACCOUNT_AUTHENTICATION_METHOD = 'username_email'  # Deprecated
 ACCOUNT_LOGIN_METHODS = ["username", "email"]  # New setting
-# ACCOUNT_EMAIL_REQUIRED = True # Deprecated
+# ACCOUNT_EMAIL_REQUIRED = True  # Deprecated
 # Specify required fields for signup
 ACCOUNT_SIGNUP_FIELDS = [
     "email",
@@ -135,10 +135,10 @@ ACCOUNT_SIGNUP_FIELDS = [
 # ACCOUNT_SIGNUP_FIELDS = {'email': {'required': True}, 'username': {'required': True}, 'password': {'required': True}}
 # For simplicity, let's use the basic list for now. dj-rest-auth might have defaults too.
 
-# ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username' # Default
+# ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'  # Default
 # ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 # ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
-# ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300 # 5 minutes
+# ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300  # 5 minutes
 
 AUTH_USER_MODEL = "core.User"  # Custom User model
 
@@ -151,7 +151,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Django Allauth middleware
-    "whitenoise.middleware.WhiteNoiseMiddleware", # Whitenoise middleware
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Whitenoise middleware
 ]
 
 ROOT_URLCONF = "event_booking_platform_backend.urls"
@@ -159,7 +159,7 @@ ROOT_URLCONF = "event_booking_platform_backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"], # Add project-level templates directory
+        "DIRS": [BASE_DIR / "templates"],  # Add project-level templates directory
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -177,7 +177,7 @@ WSGI_APPLICATION = "event_booking_platform_backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
-    'default': env.db_url('DATABASE_URL') # Uses dj_database_url to parse DATABASE_URL
+    'default': env.db_url('DATABASE_URL')  # Uses dj_database_url to parse DATABASE_URL
 }
 # Ensure the appropriate adapter (e.g., psycopg2-binary) is installed for PostgreSQL.
 
@@ -190,7 +190,7 @@ DATABASES = {
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
 CACHES = {
-    "default": env.cache_url('REDIS_URL') # Uses django-environ to parse REDIS_URL
+    "default": env.cache_url('REDIS_URL')  # Uses django-environ to parse REDIS_URL
     # Example for development if Redis is not available:
     # "default": {
     #     "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -200,18 +200,18 @@ CACHES = {
 
 # Email Configuration for Development
 # https://docs.djangoproject.com/en/dev/topics/email/#console-backend
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend" # Default for dev
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # Default for dev
 
 # PRODUCTION EMAIL CONFIGURATION (Example using django-environ, to be uncommented and configured in production)
 # EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 # EMAIL_HOST = env('EMAIL_HOST', default='localhost')
-# EMAIL_PORT = env.int('EMAIL_PORT', default=25) # Use env.int for integer values
+# EMAIL_PORT = env.int('EMAIL_PORT', default=25)  # Use env.int for integer values
 # EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 # EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
-# EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False) # Use env.bool for boolean values
-# EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False) # Mutually exclusive with EMAIL_USE_TLS
+# EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False)  # Use env.bool for boolean values
+# EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)  # Mutually exclusive with EMAIL_USE_TLS
 # DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
-# SERVER_EMAIL = env('SERVER_EMAIL', default='root@localhost') # For error notifications
+# SERVER_EMAIL = env('SERVER_EMAIL', default='root@localhost')  # For error notifications
 
 
 REST_FRAMEWORK = {
@@ -286,8 +286,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles" # For collectstatic
-# STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage" # Development
+STATIC_ROOT = BASE_DIR / "staticfiles"  # For collectstatic
+# STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"  # Development
 # For production with Whitenoise:
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
