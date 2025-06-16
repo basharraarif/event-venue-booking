@@ -963,9 +963,9 @@ paths:
   /api/payments/create-payment-intent/:
     post:
       operationId: payments_create_payment_intent_create
-      description: "Given a `booking_id`, this endpoint creates a new Stripe PaymentIntent\
-        \ \n    or retrieves an existing one if the payment is still pending.\n  \
-        \  It returns the `client_secret` needed by the frontend to confirm the payment\
+      description: "Given a `booking_id`, this endpoint creates a new Stripe PaymentIntent\n\
+        \    or retrieves an existing one if the payment is still pending.\n    It\
+        \ returns the `client_secret` needed by the frontend to confirm the payment\
         \ with Stripe.\n    "
       summary: Create or Retrieve Stripe Payment Intent
       tags:
@@ -1301,6 +1301,10 @@ paths:
         schema:
           type: number
       - in: query
+        name: name
+        schema:
+          type: string
+      - in: query
         name: owner
         schema:
           type: integer
@@ -1528,12 +1532,18 @@ components:
           - $ref: '#/components/schemas/Payment'
           readOnly: true
           description: Read-only. Detailed information about the associated payment.
+        payment_intent_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Stripe PaymentIntent ID, if applicable.
       required:
       - booking_time
       - event
       - event_details
       - id
       - payment_details
+      - payment_intent_id
       - payment_status
       - price_per_ticket_at_booking
       - total_price
@@ -1639,7 +1649,7 @@ components:
         effective_capacity:
           type: integer
           readOnly: true
-        confirmed_tickets_count:
+        active_tickets_count:
           type: integer
           readOnly: true
         created_at:
@@ -1651,8 +1661,8 @@ components:
           format: date-time
           readOnly: true
       required:
+      - active_tickets_count
       - categories
-      - confirmed_tickets_count
       - created_at
       - effective_capacity
       - end_time
@@ -1827,6 +1837,11 @@ components:
           - $ref: '#/components/schemas/Payment'
           readOnly: true
           description: Read-only. Detailed information about the associated payment.
+        payment_intent_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Stripe PaymentIntent ID, if applicable.
     PatchedCategory:
       type: object
       properties:
@@ -1912,7 +1927,7 @@ components:
         effective_capacity:
           type: integer
           readOnly: true
-        confirmed_tickets_count:
+        active_tickets_count:
           type: integer
           readOnly: true
         created_at:

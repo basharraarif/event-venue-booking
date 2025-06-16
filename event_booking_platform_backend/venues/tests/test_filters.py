@@ -206,8 +206,77 @@ class VenueFilterSetTests(APITestCase):
     # This is a prerequisite for the test to be meaningful.
     # (Agent decides to modify VenueFilter first, then write the test file)
     # This is simulated by the next thought block if I were to call a tool.
-    # For now, I will write the test file assuming 'owner' is filterable.
-    # If `python manage.py test venues.tests.test_filters` fails because of 'owner' filter not working,
-    # then the fix will be to add 'owner' to `VenueFilter.Meta.fields`.
-    # For now, the test code is the primary deliverable.
-    pass # Placeholder if no more tests for now. Will create the file.
+    # The 'owner' filter was added to VenueFilter.Meta.fields in a previous step.
+
+    def test_filter_is_available(self):
+        # Create one venue that is not available
+        Venue.objects.create(
+            name="Unavailable Venue", address="789 Unavailable St", capacity=50, owner=self.owner_user, is_available=False
+        )
+        # All other setUp venues are is_available=True by default or explicitly
+
+        response_true = self.client.get(self.list_url, {'is_available': 'true'})
+        self.assertEqual(response_true.status_code, status.HTTP_200_OK)
+        # TechPark, Community Hall, Grand Ballroom, Small Meeting Room are available (4)
+        self.assertEqual(len(response_true.data), 4)
+        for venue_data in response_true.data:
+            self.assertTrue(venue_data['is_available'])
+
+        response_false = self.client.get(self.list_url, {'is_available': 'false'})
+        self.assertEqual(response_false.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response_false.data), 1)
+        self.assertEqual(response_false.data[0]['name'], "Unavailable Venue")
+
+    def test_filter_pricing(self):
+        # Add pricing to test venues
+        self.venue1.pricing_per_hour = Decimal('100.00') # TechPark
+        self.venue1.pricing_per_day = Decimal('700.00')
+        self.venue1.save()
+        self.venue2.pricing_per_hour = Decimal('50.00')  # Community Hall
+        self.venue2.pricing_per_day = Decimal('300.00')
+        self.venue2.save()
+        self.venue3.pricing_per_hour = Decimal('200.00') # Grand Ballroom
+        self.venue3.pricing_per_day = Decimal('1500.00')
+        self.venue3.save()
+        self.venue4.pricing_per_hour = Decimal('30.00')  # Small Meeting Room
+        # venue4 has no pricing_per_day (null)
+
+        # Test min_price_per_hour
+        response = self.client.get(self.list_url, {'min_price_per_hour': '100.00'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn("TechPark Venue", names)
+        self.assertIn("Grand Ballroom", names)
+        self.assertEqual(len(names), 2)
+
+        # Test max_price_per_hour
+        response = self.client.get(self.list_url, {'max_price_per_hour': '50.00'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn("Community Hall", names)
+        self.assertIn("Small Meeting Room", names)
+        self.assertEqual(len(names), 2)
+
+        # Test min_price_per_day
+        response = self.client.get(self.list_url, {'min_price_per_day': '700.00'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn("TechPark Venue", names)
+        self.assertIn("Grand Ballroom", names)
+        self.assertEqual(len(names), 2)
+
+        # Test max_price_per_day
+        response = self.client.get(self.list_url, {'max_price_per_day': '300.00'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn("Community Hall", names)
+        # Small Meeting Room has null pricing_per_day, so it shouldn't be included by lte=300
+        self.assertEqual(len(names), 1)
+
+        # Test combined price range
+        response = self.client.get(self.list_url, {'min_price_per_hour': '40.00', 'max_price_per_hour': '150.00'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item['name'] for item in response.data}
+        self.assertIn("TechPark Venue", names)    # 100
+        self.assertIn("Community Hall", names)  # 50
+        self.assertEqual(len(names), 2)

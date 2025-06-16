@@ -1,10 +1,35 @@
 from rest_framework import serializers
 from .models import Venue
 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
 class VenueSerializer(serializers.ModelSerializer):
+    owner_username = serializers.CharField(
+        source='owner.username',
+        read_only=True,
+        help_text="Username of the venue owner (Read-only)."
+    )
+    # owner field itself will be read-only, set by the view.
+    owner = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+        help_text="ID of the user owning the venue. Set automatically on creation."
+    )
+
     class Meta:
         model = Venue
-        fields = '__all__' # Keeps all model fields in the serializer
+        fields = [
+            'id', 'name', 'address', 'capacity', 'amenities',
+            'contact_email', 'contact_phone', 'website', 'description',
+            'is_available', 'has_parking', 'has_public_transport',
+            'owner', 'owner_username',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'created_at', 'updated_at',
+            'owner', 'owner_username',
+        ]
         extra_kwargs = {
             'name': {
                 'help_text': "The official name of the venue."

@@ -142,6 +142,12 @@ class TestVenueSerializer:
 
         serializer = VenueSerializer(instance=venue, data=data)
         assert serializer.is_valid(), serializer.errors
+
+        # Create a dummy user to attempt to set as owner
+        dummy_user = mixer.blend('auth.User', username='dummyowner')
+        serializer.validated_data['owner'] = dummy_user.pk # Try to set owner via validated_data
+        serializer.validated_data['owner_username'] = 'dummyowner_username' # Try to set owner_username
+
         updated_venue = serializer.save() # This save() should update the timestamp again
 
         assert updated_venue.id == original_id # ID should not change
@@ -151,6 +157,10 @@ class TestVenueSerializer:
         assert updated_venue.created_at.isoformat() == original_created_at
         # updated_at should change because the instance is saved by the serializer
         assert updated_venue.updated_at > updated_at_from_mixer_save
+
+        # Assert owner and owner_username did not change
+        assert updated_venue.owner == venue.owner # Should remain the original owner
+        assert updated_venue.owner_username == venue.owner.username # Should reflect original owner's username
 
     # Note: For JSONField validation (e.g. ensuring it's valid JSON),
     # DRF handles this by default. If you try to pass non-JSON serializable data,

@@ -11,8 +11,14 @@ import venueService, { Venue } from '@/services/venueService';
 import LoadingSpinner from '@/components/common/LoadingSpinner'; // Import common components
 import AlertMessage from '@/components/common/AlertMessage';   // Import common components
 
+// Define role constants (align with backend Role.name and AuthContext)
+const ROLE_EVENT_ORGANIZER = 'EVENT_ORGANIZER';
+const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
+// const ROLE_CUSTOMER = 'CUSTOMER'; // Not explicitly used for section visibility other than generic bookings
+// const ROLE_ADMIN = 'ADMIN'; // Admins might see all sections or specific admin tools
+
 const DashboardPage = () => {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, hasRole } = useAuth(); // Added hasRole
 
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -39,9 +45,9 @@ const DashboardPage = () => {
         .finally(() => setLoadingBookings(false));
 
       // Fetch My Events if user is an organizer
-      if (user.roles && user.roles.includes('organizer')) {
+      if (hasRole(ROLE_EVENT_ORGANIZER)) { // Use hasRole
         setLoadingEvents(true);
-        eventService.getEvents({ organizer: user.id })
+        eventService.getEvents({ organizer: user.id }) // Assuming user.id is string or number as expected
           .then(data => setMyEvents(data))
           .catch(err => {
             console.error("Error fetching events:", err);
@@ -53,9 +59,10 @@ const DashboardPage = () => {
       }
 
       // Fetch My Venues if user is a venue_manager
-      if (user.roles && user.roles.includes('venue_manager')) {
+      if (hasRole(ROLE_VENUE_MANAGER)) { // Use hasRole
         setLoadingVenues(true);
-        venueService.getVenues({ owner: user.id })
+        // Ensure user.id is passed correctly if it's a string UUID vs number for the service
+        venueService.getVenues({ owner: user.id as string }) // Assuming owner takes string ID
           .then(data => setMyVenues(data.results || [])) // Ensure results is an array
           .catch(err => {
             console.error("Error fetching venues:", err);
@@ -161,7 +168,7 @@ const DashboardPage = () => {
       </section>
 
       {/* My Events Section (for Organizers) */}
-      {user.roles && user.roles.includes('organizer') && (
+      {hasRole(ROLE_EVENT_ORGANIZER) && ( // Use hasRole
         <section className="mb-12 p-4 md:p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
           <h2 className="text-xl md:text-2xl font-semibold text-gray-700 dark:text-white mb-6">My Events (Organized by Me)</h2>
           {loadingEvents && <LoadingSpinner message="Loading your events..." />}
@@ -188,7 +195,7 @@ const DashboardPage = () => {
       )}
 
       {/* My Venues Section (for Venue Managers) */}
-      {user.roles && user.roles.includes('venue_manager') && (
+      {hasRole(ROLE_VENUE_MANAGER) && ( // Use hasRole
         <section className="p-4 md:p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
           <h2 className="text-xl md:text-2xl font-semibold text-gray-700 dark:text-white mb-6">My Venues (Managed by Me)</h2>
           {loadingVenues && <LoadingSpinner message="Loading your venues..." />}

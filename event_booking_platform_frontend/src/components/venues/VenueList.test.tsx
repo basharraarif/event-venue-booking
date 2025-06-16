@@ -9,6 +9,11 @@ import { Venue } from '../../services/venueService'; // Import Venue type
 jest.mock('../../services/venueService');
 const mockGetVenues = venueService.getVenues as jest.Mock;
 
+// Mock useAuth hook
+jest.mock('@/contexts/AuthContext');
+import { useAuth } from '@/contexts/AuthContext'; // Import the actual hook
+const mockUseAuth = useAuth as jest.Mock;
+
 // Mock Next.js Link component
 jest.mock('next/link', () => {
   return ({ children, href }: { children: React.ReactNode; href: string }) => {
@@ -304,16 +309,49 @@ describe('VenueList Component', () => {
     });
   });
 
-  test('displays "Create New Venue" link', () => {
-    render(<VenueList />);
-    // The link might be rendered multiple times (e.g., in header and in "no venues" message)
-    // We check if at least one is present.
-    const createLinks = screen.getAllByText(/create new venue/i);
-    expect(createLinks.length).toBeGreaterThan(0);
-    createLinks.forEach(link => {
-      expect(link.closest('a')).toHaveAttribute('href', '/venues/create');
+  describe('"Create New Venue" Link/Button Visibility', () => {
+    const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
+    const ROLE_CUSTOMER = 'CUSTOMER';
+
+    it('shows "Create New Venue" link for Venue Manager', () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'vm1', roles: [ROLE_VENUE_MANAGER] },
+        hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
+        isLoading: false,
+      });
+      render(<VenueList />);
+      // Check both potential locations for the button
+      const createLinks = screen.queryAllByText(/create new venue/i);
+      expect(createLinks.length).toBeGreaterThan(0); // Could be 1 or 2
+      createLinks.forEach(link => {
+         expect(link.closest('a')).toHaveAttribute('href', '/venues/create');
+      });
+    });
+
+    it('does not show "Create New Venue" link for Customer', () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'cust1', roles: [ROLE_CUSTOMER] },
+        hasRole: (role: string) => role === ROLE_CUSTOMER,
+        isLoading: false,
+      });
+      render(<VenueList />);
+      expect(screen.queryByText(/create new venue/i)).not.toBeInTheDocument();
+    });
+
+    it('does not show "Create New Venue" link for unauthenticated user', () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        hasRole: () => false,
+        isLoading: false,
+      });
+      render(<VenueList />);
+      expect(screen.queryByText(/create new venue/i)).not.toBeInTheDocument();
     });
   });
+
 
   test('calls getVenues with price per day filters and resets to page 1', async () => {
     render(<VenueList />);

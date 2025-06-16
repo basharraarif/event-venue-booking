@@ -89,7 +89,7 @@ class VenueViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAuthenticated, (IsAdminUser | IsVenueManager)]
         elif self.action in ['list', 'retrieve']:
-            self.permission_classes = [AllowAny]
+            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
         else:
             self.permission_classes = [permissions.DenyAll]
         return [permission() for permission in self.permission_classes]

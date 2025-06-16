@@ -47,8 +47,8 @@ class EventSerializer(serializers.ModelSerializer):
         help_text="ID of the venue where the event will take place. This is required."
     )
     organizer = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), # Assuming User model is imported (from django.contrib.auth import get_user_model)
-        help_text="ID of the user organizing the event. This is required."
+        read_only=True, # Set by perform_create in the viewset
+        help_text="ID of the user organizing the event. Set automatically on creation."
     )
 
     # Schema hints for properties/methods
@@ -69,7 +69,8 @@ class EventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description',
             'venue', 'venue_name',
-            'organizer', 'organizer_username',
+            'organizer', # Still in fields to be included in GET responses
+            'organizer_username',
             'categories',
             'start_time', 'end_time', 'status', 'ticket_price',
             'max_capacity',
@@ -77,9 +78,11 @@ class EventSerializer(serializers.ModelSerializer):
             'active_tickets_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = [ # Removed effective_capacity and active_tickets_count
+        read_only_fields = [
             'created_at', 'updated_at',
+            'organizer', # Explicitly mark organizer as read-only here too
             'organizer_username', 'venue_name',
+            # effective_capacity and active_tickets_count are read-only due to SerializerMethodField
         ]
         extra_kwargs = {
             'name': {'help_text': "Name of the event."},

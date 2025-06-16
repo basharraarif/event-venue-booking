@@ -1,52 +1,115 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import AddVenuePage from './page'; // Path to the AddVenuePage component
+import AddVenuePageInternal from './page'; // Import the actual page component (default export)
 import { createVenue } from '@/services/venueService';
-import { AuthProvider } from '@/contexts/AuthContext'; // To wrap page as it uses withAuth HOC
+import { useAuth } from '@/contexts/AuthContext'; // Will be mocked
 
 // Mock services and navigation
 jest.mock('@/services/venueService');
 const mockCreateVenue = createVenue as jest.MockedFunction<typeof createVenue>;
 
 const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn(); // For RoleRequired redirection
 jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({ push: mockRouterPush, replace: jest.fn() })),
-  useParams: jest.fn(() => ({})), // Not used here but good to have a default mock
+  useRouter: jest.fn(() => ({ push: mockRouterPush, replace: mockRouterReplace })),
+  useParams: jest.fn(() => ({})),
   usePathname: jest.fn(() => '/venues/new'),
 }));
 
-// Mock the withAuth HOC to just render the wrapped component
-// Or provide a mock AuthContext if withAuth relies on it directly and deeply
-jest.mock('@/components/auth/withAuth', () => (WrappedComponent) => {
-    // eslint-disable-next-line react/display-name
-    return (props) => <WrappedComponent {...props} />;
+// Mock AuthContext
+jest.mock('@/contexts/AuthContext');
+const mockUseAuth = useAuth as jest.Mock;
+
+// Mock RoleRequired to simplify testing:
+// It will use the mocked useAuth. If auth fails, it renders nothing or a message.
+// If auth passes, it renders children.
+jest.mock('@/components/auth/RoleRequired', () => ({ children, requiredRoles, showError }: any) => {
+  const auth = useAuth(); // Uses the mocked useAuth
+  const rolesToCheck = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+  const userHasRequiredRole = rolesToCheck.some((role: string) => auth.hasRole(role));
+
+  if (auth.isLoading) return <div>Mock Loading Auth...</div>;
+  if (!auth.isAuthenticated) {
+    if (showError) return <div data-testid="mock-role-error">Not Authenticated (RoleRequired Mock)</div>;
+    // mockRouterReplace('/login-mock-redirect'); // Simulate redirect
+    return null;
+  }
+  if (!userHasRequiredRole) {
+    if (showError) return <div data-testid="mock-role-error">Access Denied: Missing Role (RoleRequired Mock)</div>;
+    // mockRouterReplace('/fallback-mock-redirect'); // Simulate redirect
+    return null;
+  }
+  return <>{children}</>;
 });
 
 
-// Helper to render with AuthProvider, as AddVenuePage is wrapped by withAuth which uses useAuth
-const renderWithAuthProvider = (ui: React.ReactElement) => {
-  return render(
-    <AuthProvider>
-      {ui}
-    </AuthProvider>
-  );
+// Helper to render with specific AuthContext values
+const renderPage = (authContextValue: Partial<ReturnType<typeof useAuth>>) => {
+  mockUseAuth.mockReturnValue({
+    isAuthenticated: false,
+    user: null,
+    isLoading: false,
+    hasRole: jest.fn().mockReturnValue(false),
+    login: jest.fn(),
+    logout: jest.fn(),
+    fetchAndUpdateUser: jest.fn().mockResolvedValue(undefined),
+    token: null,
+    ...authContextValue,
+  });
+  return render(<AddVenuePageInternal />);
 };
 
-describe('AddVenuePage Component', () => {
+describe('AddVenuePage Component (with Role Protection)', () => {
+  const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
+  const ROLE_CUSTOMER = 'CUSTOMER';
+
   beforeEach(() => {
     mockCreateVenue.mockClear();
     mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
+    mockUseAuth.mockReset();
   });
 
-  it('renders the VenueForm', () => {
-    renderWithAuthProvider(<AddVenuePage />);
+  it('does not render form for unauthenticated user (RoleRequired handles this)', () => {
+    renderPage({ isAuthenticated: false, isLoading: false });
+    // Expect RoleRequired's mock to prevent rendering or show its own message/redirect
+    expect(screen.queryByRole('heading', { name: /add new venue/i })).not.toBeInTheDocument();
+    // Depending on RoleRequired mock, check for redirect or specific message if showError were true
+  });
+
+  it('does not render form for authenticated user without VENUE_MANAGER role', () => {
+    renderPage({
+      isAuthenticated: true,
+      user: { id: 'user1', roles: [ROLE_CUSTOMER] } as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_CUSTOMER,
+    });
+    expect(screen.queryByRole('heading', { name: /add new venue/i })).not.toBeInTheDocument();
+    // Check for RoleRequired's specific error message if showError={true} was used on the page
+    // As page uses showError={true}, we expect the message from the RoleRequired mock
+    expect(screen.getByTestId('mock-role-error')).toHaveTextContent('Access Denied: Missing Role (RoleRequired Mock)');
+  });
+
+  it('renders the VenueForm for authenticated VENUE_MANAGER', () => {
+    renderPage({
+      isAuthenticated: true,
+      user: { id: 'vm1', roles: [ROLE_VENUE_MANAGER] } as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
+    });
     expect(screen.getByRole('heading', { name: /add new venue/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/name/i)).toBeInTheDocument(); // Check for a form field
+    expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create venue/i })).toBeInTheDocument();
   });
 
-  it('calls createVenue and redirects on successful submission', async () => {
+  it('calls createVenue and redirects on successful submission for VENUE_MANAGER', async () => {
+    renderPage({ // Ensure user has VENUE_MANAGER role
+      isAuthenticated: true,
+      user: { id: 'vm1', roles: [ROLE_VENUE_MANAGER] } as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
+    });
     const newVenueData = {
       name: 'Test Create Venue',
       address: '123 Create St',

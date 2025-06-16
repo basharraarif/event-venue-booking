@@ -132,11 +132,12 @@ class CreatePaymentIntentView(APIView):
             payment.status = 'pending'
             payment.save()
 
-            # Update booking payment_status
-            booking.payment_status = 'pending'
-            booking.save(update_fields=['payment_status'])
+            # Update booking payment_status and payment_intent_id
+            # booking.payment_status = 'pending' # This field was removed
+            booking.payment_intent_id = intent.id # Store Stripe PaymentIntent ID on the booking
+            booking.save(update_fields=['payment_intent_id']) # Removed 'payment_status'
 
-            logger.info(f"PaymentIntent {intent.id} created/updated for booking {booking_id} (Payment {payment.id}) by user {user.id}")
+            logger.info(f"PaymentIntent {intent.id} created/updated for booking {booking_id} (Payment {payment.id}, Booking PI ID: {booking.payment_intent_id}) by user {user.id}")
             response_serializer = PaymentIntentResponseSerializer(data={'client_secret': intent.client_secret, 'payment_id': payment.id})
             response_serializer.is_valid(raise_exception=True)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -146,15 +147,16 @@ class CreatePaymentIntentView(APIView):
             # Update payment status to 'failed' if PI creation fails critically
             payment.status = 'failed'
             payment.save(update_fields=['status'])
-            booking.payment_status = 'failed'
-            booking.save(update_fields=['payment_status'])
+            # booking.payment_status = 'failed' # This field was removed
+            # booking.save(update_fields=['payment_status']) # Removed 'payment_status'
+            # No need to update booking.payment_intent_id here if PI creation failed before ID was known
             return Response({'error': f'Stripe error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             logger.error(f"Generic error while creating/updating PaymentIntent for booking {booking_id} (Payment {payment.id}): {e}")
-            payment.status = 'failed'
+            payment.status = 'failed' # Ensure payment status is marked failed.
             payment.save(update_fields=['status'])
-            booking.payment_status = 'failed'
-            booking.save(update_fields=['payment_status'])
+            # booking.payment_status = 'failed' # This field was removed
+            # booking.save(update_fields=['payment_status']) # Removed 'payment_status'
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -225,32 +227,51 @@ class StripeWebhookView(APIView):
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
 
     def handle_payment_success(self, payment_intent):
-        payment_intent_id = payment_intent.id
-        metadata = payment_intent.metadata
-        payment_db_id = metadata.get('payment_db_id')
-        booking_id = metadata.get('booking_id')
+        stripe_pi_id = payment_intent.id
+        logger.info(f"Processing payment_intent.succeeded for Stripe PI ID: {stripe_pi_id}")
 
         try:
-            # It's safer to use payment_db_id if available and unique
-            if payment_db_id:
-                 payment = Payment.objects.select_related('booking', 'booking__user').get(id=payment_db_id, stripe_payment_intent_id=payment_intent_id)
-            else: # Fallback if payment_db_id not in metadata (older PIs or different setup)
-                 payment = Payment.objects.select_related('booking', 'booking__user').get(stripe_payment_intent_id=payment_intent_id)
+            booking = Booking.objects.select_related('user', 'event').get(payment_intent_id=stripe_pi_id)
+            logger.info(f"Found booking {booking.id} via payment_intent_id {stripe_pi_id}")
 
-            if payment.status == 'succeeded':
-                logger.info(f"Payment {payment.id} for PI {payment_intent_id} already marked as succeeded. Webhook possibly resent.")
-                return
+            # Update Booking status
+            if booking.status == Booking.BookingStatus.CONFIRMED:
+                logger.info(f"Booking {booking.id} is already confirmed. Webhook possibly resent or status already updated.")
+                # Optionally, ensure related Payment object is also consistent.
+            else:
+                booking.status = Booking.BookingStatus.CONFIRMED
+                booking.save(update_fields=['status'])
+                logger.info(f"Booking {booking.id} status updated to CONFIRMED.")
 
-            payment.status = 'succeeded'
-            # payment.payment_method_details = payment_intent.payment_method_details # Store if needed
-            payment.save()
+            # Update or create associated Payment record for history/consistency
+            payment, created = Payment.objects.get_or_create(
+                booking=booking,
+                defaults={
+                    'amount': booking.total_price, # Ensure this is correct; PI amount might be better
+                    'currency': payment_intent.currency.upper(),
+                    'stripe_payment_intent_id': stripe_pi_id,
+                    'status': 'succeeded',
+                }
+            )
+            if not created and payment.status != 'succeeded':
+                payment.status = 'succeeded'
+                payment.stripe_payment_intent_id = stripe_pi_id # Ensure PI ID is set
+                if payment.amount != (payment_intent.amount / 100): # Stripe amount is in cents
+                    payment.amount = payment_intent.amount / 100
+                payment.currency = payment_intent.currency.upper()
+                payment.save()
+                logger.info(f"Existing Payment record {payment.id} for Booking {booking.id} updated to succeeded.")
+            elif created:
+                logger.info(f"New Payment record {payment.id} created for Booking {booking.id} with status succeeded.")
+            else:
+                logger.info(f"Payment record {payment.id} for Booking {booking.id} already marked succeeded.")
 
-            booking = payment.booking
-            booking.payment_status = 'paid'
-            booking.status = Booking.BookingStatus.CONFIRMED # Confirm booking upon successful payment
-            booking.save(update_fields=['payment_status', 'status'])
+            # Ensure booking has the payment_intent_id if it was somehow missed (belt and braces)
+            if not booking.payment_intent_id:
+                booking.payment_intent_id = stripe_pi_id
+                booking.save(update_fields=['payment_intent_id'])
 
-            logger.info(f"Payment {payment.id} (Booking {booking.id}) successfully processed. Booking status updated to {booking.status}.")
+            logger.info(f"Payment for booking {booking.id} (Stripe PI: {stripe_pi_id}) successfully processed.")
 
             # Send confirmation email
             try:
@@ -259,43 +280,63 @@ class StripeWebhookView(APIView):
                     subject_template_name='emails/payment_confirmation_subject.txt',
                     body_html_template_name='emails/payment_confirmation_body.html',
                     body_text_template_name='emails/payment_confirmation_body.txt',
-                    payment=payment # Pass payment object if template needs it
+                    payment=payment # Pass the updated/created payment object
                 )
                 logger.info(f"Payment confirmation email sent for booking {booking.id}.")
             except Exception as e:
                 logger.error(f"Error sending payment confirmation email for booking {booking.id}: {e}")
 
-        except Payment.DoesNotExist:
-            logger.error(f"Payment record not found for PaymentIntent ID {payment_intent_id} or payment_db_id {payment_db_id}. Cannot update status.")
-        except Booking.DoesNotExist: # Should not happen if Payment record exists with booking FK
-            logger.error(f"Booking record not found for associated PaymentIntent ID {payment_intent_id}. Critical error.")
+        except Booking.DoesNotExist:
+            logger.error(f"Booking not found for Stripe PaymentIntent ID {stripe_pi_id}. Cannot update status.")
+            # Consider if a Payment record should be searched or created if booking is not found by PI.
+            # For now, if Booking.payment_intent_id is the source of truth, this is the main failure point.
         except Exception as e:
-            logger.error(f"Error in handle_payment_success for PI {payment_intent_id}: {e}")
+            logger.error(f"Error in handle_payment_success for Stripe PI {stripe_pi_id}: {e}")
 
 
     def handle_payment_failure(self, payment_intent):
-        payment_intent_id = payment_intent.id
-        metadata = payment_intent.metadata
-        payment_db_id = metadata.get('payment_db_id')
-        booking_id = metadata.get('booking_id')
+        stripe_pi_id = payment_intent.id
+        logger.info(f"Processing payment_intent.payment_failed for Stripe PI ID: {stripe_pi_id}")
 
         try:
-            if payment_db_id:
-                 payment = Payment.objects.select_related('booking', 'booking__user').get(id=payment_db_id, stripe_payment_intent_id=payment_intent_id)
+            booking = Booking.objects.select_related('user', 'event').get(payment_intent_id=stripe_pi_id)
+            logger.info(f"Found booking {booking.id} via payment_intent_id {stripe_pi_id} for failure processing.")
+
+            # Booking status typically remains PENDING_PAYMENT or similar; payment failure doesn't auto-cancel booking.
+            # Business logic might dictate other status changes (e.g., to FAILED if too many retries).
+            # For now, we primarily update the Payment model.
+
+            # Update or create associated Payment record
+            payment, created = Payment.objects.get_or_create(
+                booking=booking,
+                defaults={ # Defaults if creating new
+                    'amount': payment_intent.amount / 100,
+                    'currency': payment_intent.currency.upper(),
+                    'stripe_payment_intent_id': stripe_pi_id,
+                    'status': 'failed',
+                }
+            )
+            if not created and payment.status != 'failed':
+                payment.status = 'failed'
+                payment.stripe_payment_intent_id = stripe_pi_id # Ensure PI ID is set
+                if payment.amount != (payment_intent.amount / 100):
+                    payment.amount = payment_intent.amount / 100
+                payment.currency = payment_intent.currency.upper()
+                # Store failure reason if your Payment model has such a field
+                # payment.failure_reason = payment_intent.last_payment_error.message if payment_intent.last_payment_error else "Unknown"
+                payment.save()
+                logger.info(f"Existing Payment record {payment.id} for Booking {booking.id} updated to failed.")
+            elif created:
+                logger.info(f"New Payment record {payment.id} created for Booking {booking.id} with status failed.")
             else:
-                 payment = Payment.objects.select_related('booking', 'booking__user').get(stripe_payment_intent_id=payment_intent_id)
+                 logger.info(f"Payment record {payment.id} for Booking {booking.id} already marked failed.")
 
-            payment.status = 'failed'
-            # payment.failure_reason = payment_intent.last_payment_error.message if payment_intent.last_payment_error else "Unknown" # Store if model has this field
-            payment.save()
+            # Ensure booking has the payment_intent_id if it was somehow missed
+            if not booking.payment_intent_id:
+                booking.payment_intent_id = stripe_pi_id
+                booking.save(update_fields=['payment_intent_id'])
 
-            booking = payment.booking
-            booking.payment_status = 'failed'
-            # Decide on booking status, e.g., back to PENDING_PAYMENT or keep as is if user can retry with same booking
-            # booking.status = Booking.BookingStatus.PENDING_PAYMENT
-            booking.save(update_fields=['payment_status'])
-
-            logger.info(f"Payment {payment.id} (Booking {booking.id}) failed. Payment and Booking status updated.")
+            logger.info(f"Payment failure for booking {booking.id} (Stripe PI: {stripe_pi_id}) processed.")
 
             # Send payment failure email
             try:
@@ -304,16 +345,16 @@ class StripeWebhookView(APIView):
                     subject_template_name='emails/payment_failed_subject.txt',
                     body_html_template_name='emails/payment_failed_body.html',
                     body_text_template_name='emails/payment_failed_body.txt',
-                    payment=payment # Pass payment object if template needs it
+                    payment=payment # Pass the updated/created payment object
                 )
                 logger.info(f"Payment failure email sent for booking {booking.id}.")
             except Exception as e:
                 logger.error(f"Error sending payment failure email for booking {booking.id}: {e}")
 
-        except Payment.DoesNotExist:
-            logger.error(f"Payment record not found for PaymentIntent ID {payment_intent_id} or payment_db_id {payment_db_id} on failure. Cannot update status.")
+        except Booking.DoesNotExist:
+            logger.error(f"Booking not found for Stripe PaymentIntent ID {stripe_pi_id} on failure. Cannot update status.")
         except Exception as e:
-            logger.error(f"Error in handle_payment_failure for PI {payment_intent_id}: {e}")
+            logger.error(f"Error in handle_payment_failure for Stripe PI {stripe_pi_id}: {e}")
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet): # Changed to ReadOnly as creation is via PaymentIntent

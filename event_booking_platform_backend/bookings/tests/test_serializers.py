@@ -142,58 +142,77 @@ class BookingSerializerTests(TestCase):
         user_cancelled = User.objects.create_user('cancelled_booker', 'pass')
         user_confirmed = User.objects.create_user('confirmed_booker', 'pass')
 
-        Booking.objects.create(event=self.event, user=user_pending, number_of_tickets=2, status=Booking.BookingStatus.PENDING)
+        Booking.objects.create(event=self.event, user=user_pending, number_of_tickets=2, status=Booking.BookingStatus.PENDING_PAYMENT)
         Booking.objects.create(event=self.event, user=user_cancelled, number_of_tickets=2, status=Booking.BookingStatus.CANCELLED)
         Booking.objects.create(event=self.event, user=user_confirmed, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
 
-        self.assertEqual(self.event.confirmed_tickets_count(), 1) # Only 1 confirmed ticket
+        # Serializer's validate method now sums only CONFIRMED bookings.
+        # current_confirmed_tickets = 1. effective_capacity = 5. available = 4.
 
-        # Try to book 4 tickets. Available = 5 (event.max_capacity) - 1 (confirmed) = 4. Should succeed.
+        # Try to book 4 tickets. Should succeed.
         data = {'event': self.event.pk, 'number_of_tickets': 4}
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertTrue(serializer.is_valid(), serializer.errors)
-        booking = serializer.save(user=self.booker_user)
+        booking = serializer.save(user=self.booker_user) # This booking is PENDING by default
         self.assertEqual(booking.number_of_tickets, 4)
 
-        # Try to book 1 more ticket. Available should now be 0.
-        booking.status = Booking.BookingStatus.CONFIRMED # Confirm the previous booking
+        # Confirm this new booking. Now total confirmed = 1 (original) + 4 (new) = 5.
+        booking.status = Booking.BookingStatus.CONFIRMED
         booking.save()
-        self.assertEqual(self.event.confirmed_tickets_count(), 5)
 
+        # Verify confirmed count (optional, direct model check)
+        # total_confirmed_db = Booking.objects.filter(event=self.event, status=Booking.BookingStatus.CONFIRMED).aggregate(Sum('number_of_tickets'))['total_tickets__sum'] or 0
+        # self.assertEqual(total_confirmed_db, 5)
+
+
+        # Try to book 1 more ticket. Available should now be 0.
         data_fail = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer_fail = BookingSerializer(data=data_fail, context=self.serializer_context)
         self.assertFalse(serializer_fail.is_valid())
-        self.assertIn("Only 0 tickets remaining", serializer_fail.errors['number_of_tickets'][0])
+        # Expected error: "Booking exceeds event capacity. Only 0 ticket(s) available..."
+        self.assertIn("Only 0 tickets available", str(serializer_fail.errors['number_of_tickets'][0]))
 
-    def test_update_booking_adjusts_capacity_check(self):
+
+    def test_update_booking_adjusts_capacity_check_correctly(self):
         self.event.max_capacity = 5
         self.event.save()
 
-        # Booker user makes a confirmed booking for 2 tickets
-        initial_booking = Booking.objects.create(event=self.event, user=self.booker_user, number_of_tickets=2, status=Booking.BookingStatus.CONFIRMED)
-        self.assertEqual(self.event.confirmed_tickets_count(), 2) # 2 tickets confirmed
+        # User A makes a confirmed booking for 2 tickets
+        user_a = User.objects.create_user('user_a_cap', 'pass')
+        booking_a = Booking.objects.create(event=self.event, user=user_a, number_of_tickets=2, status=Booking.BookingStatus.CONFIRMED)
 
-        # Try to update this booking to 4 tickets (2 existing + 2 new = 4 total by this user for this event)
-        # Available for others = 5 - 2 = 3. This update implies user wants 4 total.
-        # Change for this user = 4 (new total) - 2 (old total) = +2 tickets.
-        # Other confirmed = 0.
-        # 0 (other_confirmed) + 4 (requested_total_for_this_booking) <= 5 (capacity). This should be fine.
+        # User B makes a confirmed booking for 1 ticket
+        user_b = User.objects.create_user('user_b_cap', 'pass')
+        Booking.objects.create(event=self.event, user=user_b, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
+
+        # Total confirmed tickets = 2 (A) + 1 (B) = 3. Remaining capacity = 5 - 3 = 2.
+
+        # User A tries to update their booking from 2 to 4 tickets.
+        # effective_tickets_for_others = 1 (from User B).
+        # requested_tickets = 4.
+        # effective_tickets_for_others (1) + requested_tickets (4) = 5. This should be allowed.
         update_data = {'number_of_tickets': 4}
-        serializer_update = BookingSerializer(instance=initial_booking, data=update_data, partial=True, context=self.serializer_context)
+        serializer_update = BookingSerializer(instance=booking_a, data=update_data, partial=True, context=self.serializer_context)
         self.assertTrue(serializer_update.is_valid(), serializer_update.errors)
-        updated_booking = serializer_update.save()
-        updated_booking.status = Booking.BookingStatus.CONFIRMED # Assume it remains/becomes confirmed
-        updated_booking.save()
+        updated_booking_a = serializer_update.save()
+        updated_booking_a.status = Booking.BookingStatus.CONFIRMED # Simulate re-confirmation
+        updated_booking_a.save()
+        self.assertEqual(updated_booking_a.number_of_tickets, 4)
 
-        self.assertEqual(updated_booking.number_of_tickets, 4)
-        self.assertEqual(self.event.confirmed_tickets_count(), 4)
+        # Total confirmed tickets = 4 (A updated) + 1 (B) = 5. Remaining capacity = 0.
 
-        # Now, another user tries to book. Remaining capacity = 5 - 4 = 1.
-        other_user = User.objects.create_user('other_cap_booker', 'pass')
-        data_other_user = {'event': self.event.pk, 'number_of_tickets': 2}
-        serializer_other = BookingSerializer(data=data_other_user, context=self.serializer_context)
-        self.assertFalse(serializer_other.is_valid())
-        self.assertIn("Only 1 tickets remaining", serializer_other.errors['number_of_tickets'][0])
+        # User B tries to update their booking from 1 to 2 tickets.
+        # effective_tickets_for_others = 4 (from User A's updated booking).
+        # requested_tickets = 2.
+        # effective_tickets_for_others (4) + requested_tickets (2) = 6. Capacity is 5. Should fail.
+        # Available = 5 - 4 = 1.
+        booking_b = Booking.objects.get(user=user_b, event=self.event)
+        update_data_b = {'number_of_tickets': 2}
+        serializer_update_b = BookingSerializer(instance=booking_b, data=update_data_b, partial=True, context=self.serializer_context)
+        self.assertFalse(serializer_update_b.is_valid())
+        self.assertIn('number_of_tickets', serializer_update_b.errors)
+        self.assertIn("Only 1 ticket(s) available", str(serializer_update_b.errors['number_of_tickets'][0]))
+
 
     def test_booking_for_event_with_no_specific_max_capacity(self):
         # Event max_capacity is None, venue capacity is 100

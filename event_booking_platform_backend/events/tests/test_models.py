@@ -57,8 +57,8 @@ class EventModelTests(TestCase):
             name="No Venue Event", organizer=self.user,
             start_time=timezone.now(), end_time=timezone.now() + timezone.timedelta(hours=1)
         )
-        # event_no_venue.venue is None
-        self.assertEqual(event_no_venue.effective_capacity, 0)
+        # event_no_venue.venue is None, event.max_capacity is None
+        self.assertIsNone(event_no_venue.effective_capacity)
 
     def test_effective_capacity_venue_no_capacity(self):
         self.venue.capacity = 0 # Set venue capacity to 0
@@ -72,19 +72,21 @@ class EventModelTests(TestCase):
         self.assertEqual(self.event.effective_capacity, 50)
 
 
-    def test_confirmed_tickets_count(self):
+    def test_active_tickets_count_includes_confirmed_and_pending_payment(self):
         # No bookings initially
-        self.assertEqual(self.event.confirmed_tickets_count(), 0)
+        self.assertEqual(self.event.active_tickets_count(), 0)
 
         # Add some bookings with different statuses
         booking_user1 = User.objects.create_user(username='booker1', password='pwd')
         booking_user2 = User.objects.create_user(username='booker2', password='pwd')
         booking_user3 = User.objects.create_user(username='booker3', password='pwd')
+        booking_user4 = User.objects.create_user(username='booker4', password='pwd')
+
 
         Booking.objects.create(event=self.event, user=booking_user1, number_of_tickets=2, status=Booking.BookingStatus.CONFIRMED)
-        Booking.objects.create(event=self.event, user=booking_user2, number_of_tickets=3, status=Booking.BookingStatus.CONFIRMED)
+        Booking.objects.create(event=self.event, user=booking_user2, number_of_tickets=3, status=Booking.BookingStatus.PENDING_PAYMENT)
         Booking.objects.create(event=self.event, user=booking_user3, number_of_tickets=1, status=Booking.BookingStatus.PENDING)
-        Booking.objects.create(event=self.event, user=booking_user1, number_of_tickets=1, status=Booking.BookingStatus.CANCELLED)
+        Booking.objects.create(event=self.event, user=booking_user4, number_of_tickets=1, status=Booking.BookingStatus.CANCELLED)
 
         # Another event to ensure counts are specific to self.event
         other_event = Event.objects.create(
@@ -92,20 +94,24 @@ class EventModelTests(TestCase):
             start_time=timezone.now(), end_time=timezone.now() + timezone.timedelta(hours=1)
         )
         Booking.objects.create(event=other_event, user=booking_user1, number_of_tickets=5, status=Booking.BookingStatus.CONFIRMED)
+        Booking.objects.create(event=other_event, user=booking_user2, number_of_tickets=2, status=Booking.BookingStatus.PENDING_PAYMENT)
 
-        self.assertEqual(self.event.confirmed_tickets_count(), 5) # 2 + 3 from confirmed bookings for self.event
 
-    def test_confirmed_tickets_count_no_confirmed_bookings(self):
+        # active_tickets_count should sum CONFIRMED (2) and PENDING_PAYMENT (3) for self.event
+        self.assertEqual(self.event.active_tickets_count(), 5)
+
+    def test_active_tickets_count_no_active_bookings(self):
         booking_user1 = User.objects.create_user(username='booker_pending', password='pwd')
         Booking.objects.create(event=self.event, user=booking_user1, number_of_tickets=2, status=Booking.BookingStatus.PENDING)
-        self.assertEqual(self.event.confirmed_tickets_count(), 0)
+        Booking.objects.create(event=self.event, user=booking_user1, number_of_tickets=1, status=Booking.BookingStatus.CANCELLED)
+        self.assertEqual(self.event.active_tickets_count(), 0)
 
     def test_event_with_zero_max_capacity(self):
         self.event.max_capacity = 0
         self.event.save()
         self.assertEqual(self.event.effective_capacity, 0)
-        # Ensure confirmed_tickets_count still works (should be 0 if capacity is 0 and no bookings made)
-        self.assertEqual(self.event.confirmed_tickets_count(), 0)
+        # Ensure active_tickets_count still works (should be 0 if capacity is 0 and no bookings made)
+        self.assertEqual(self.event.active_tickets_count(), 0)
 
 class CategoryModelTests(TestCase):
     def test_category_creation(self):

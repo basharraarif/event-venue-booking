@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import Link from 'next/link'; // Added import
 import CheckoutForm from '@/components/payments/CheckoutForm';
 import PaymentService from '@/services/PaymentService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +27,7 @@ interface FullBookingDetails {
   };
   number_of_tickets: number;
   total_price: string; // Assuming string from backend
+  price_per_ticket_at_booking?: string; // Added this field
   status: string;
   // Add other fields you might need from the Booking model
 }
@@ -65,8 +67,8 @@ const CheckoutPage = () => {
         const fetchedBooking = await bookingService.getBookingById(bookingId);
         setBookingDetails(fetchedBooking);
 
-        if (fetchedBooking.status !== 'pending') {
-            setError(`This booking is already ${fetchedBooking.status} and cannot be paid for.`);
+        if (fetchedBooking.status !== 'pending_payment') { // Changed 'pending' to 'pending_payment'
+            setError(`This booking is already ${fetchedBooking.status} and cannot be paid for. Payment can only be made for 'pending_payment' bookings.`);
             setLoading(false);
             return;
         }
@@ -134,7 +136,9 @@ const CheckoutPage = () => {
         <div className="space-y-2">
             <p><span className="font-semibold">Event:</span> {bookingDetails.event_details?.name || 'N/A'}</p>
             <p><span className="font-semibold">Tickets:</span> {bookingDetails.number_of_tickets}</p>
-            <p><span className="font-semibold">Price per Ticket:</span> ${bookingDetails.price_per_ticket_at_booking ? parseFloat(bookingDetails.price_per_ticket_at_booking).toFixed(2) : 'N/A'}</p>
+            {bookingDetails.price_per_ticket_at_booking && ( // Conditional rendering
+              <p><span className="font-semibold">Price per Ticket:</span> ${parseFloat(bookingDetails.price_per_ticket_at_booking).toFixed(2)}</p>
+            )}
             <p className="text-lg font-bold"><span className="font-semibold">Total Amount:</span> ${parseFloat(bookingDetails.total_price).toFixed(2)}</p>
             <p><span className="font-semibold">Booking ID:</span> {bookingDetails.id}</p>
             <p><span className="font-semibold">Status:</span> <span className="font-medium capitalize">{bookingDetails.status}</span></p>

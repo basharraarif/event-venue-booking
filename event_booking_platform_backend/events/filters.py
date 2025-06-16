@@ -14,6 +14,8 @@ class EventFilterSet(django_filters.FilterSet):
 
     # Filter by venue ID (exact match)
     # venue_id = django_filters.NumberFilter(field_name='venue__id') # Alternative if 'venue' field is not directly filterable by ID
+    ticket_price_min = django_filters.NumberFilter(field_name='ticket_price', lookup_expr='gte')
+    ticket_price_max = django_filters.NumberFilter(field_name='ticket_price', lookup_expr='lte')
 
     class Meta:
         model = Event
@@ -21,6 +23,7 @@ class EventFilterSet(django_filters.FilterSet):
             'venue': ['exact'], # Allows filtering by venue ID: /api/events/?venue=1
             'organizer': ['exact'], # Allows filtering by organizer ID: /api/events/?organizer=1
             'status': ['exact'], # Allows filtering by status: /api/events/?status=upcoming
+            # 'ticket_price': ['gte', 'lte'], # Covered by explicit definitions above
             # 'categories': ['exact'], # Allows filtering by category ID directly if needed
         }
 

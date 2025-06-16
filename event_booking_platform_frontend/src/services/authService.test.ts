@@ -56,43 +56,46 @@ describe('authService', () => {
   });
 
   describe('logout', () => {
-    it('should call POST /auth/logout/ and remove token from localStorage', async () => {
-      localStorage.setItem('authToken', 'testtoken');
-      mockedAxiosInstance.post.mockResolvedValueOnce({ data: {} }); // Logout usually returns empty or success message
+    it('should call POST /auth/logout/', async () => {
+      mockedAxiosInstance.post.mockResolvedValueOnce({ data: {} });
 
-      await logout('testtoken'); // Pass token to logout
+      await logout(null); // Token is handled by interceptor, pass null or don't pass if argument removed
 
-      expect(mockedAxiosInstance.post).toHaveBeenCalledWith('/auth/logout/');
-      expect(localStorage.getItem('authToken')).toBeNull();
+      expect(mockedAxiosInstance.post).toHaveBeenCalledWith('/auth/logout/', null);
+      // localStorage interaction is handled by AuthContext, not service.
     });
 
-    it('should remove token from localStorage even if API call fails (best effort)', async () => {
-        localStorage.setItem('authToken', 'testtoken');
+    it('should propagate error if API call fails for logout', async () => {
         mockedAxiosInstance.post.mockRejectedValueOnce(new Error('Logout API Failed'));
-
-        await expect(logout('testtoken')).rejects.toThrow('Logout API Failed'); // Error should still propagate
-        expect(localStorage.getItem('authToken')).toBeNull(); // Token should be cleared regardless
+        // Token is handled by interceptor
+        await expect(logout(null)).rejects.toThrow('Logout API Failed');
       });
   });
 
   describe('getCurrentUser', () => {
-    it('should call GET /auth/user/ with token and return user data', async () => {
-      const token = 'testtoken';
-      const mockUser = { id: '1', username: 'testuser', email: 'test@example.com' };
-      mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockUser });
+    it('should call GET /auth/user/ and return user data', async () => {
+      const mockUser = { pk: 1, id: 1, username: 'testuser', email: 'test@example.com', roles: [] };
+      mockedAxiosInstance.get.mockResolvedValueOnce({ data: { pk: 1, username: 'testuser', email: 'test@example.com', roles: []} });
 
-      const result = await getCurrentUser(token);
+      const result = await getCurrentUser(); // Token is handled by interceptor
 
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith('/auth/user/', {
-        headers: { Authorization: `Token ${token}` },
-      });
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith('/auth/user/');
+      // Service maps pk to id
       expect(result).toEqual(mockUser);
     });
 
+    it('should correctly map pk to id if id is missing in getCurrentUser response', async () => {
+      const mockUserFromApi = { pk: 123, username: 'testpk', email: 'pk@example.com', roles: ['CUSTOMER'] };
+      const expectedUser = { ...mockUserFromApi, id: 123 };
+      mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockUserFromApi });
+
+      const result = await getCurrentUser();
+      expect(result).toEqual(expectedUser);
+    });
+
     it('should throw error if API call fails for getCurrentUser', async () => {
-      const token = 'testtoken';
       mockedAxiosInstance.get.mockRejectedValueOnce(new Error('Fetch User Failed'));
-      await expect(getCurrentUser(token)).rejects.toThrow('Fetch User Failed');
+      await expect(getCurrentUser()).rejects.toThrow('Fetch User Failed');
     });
   });
 });

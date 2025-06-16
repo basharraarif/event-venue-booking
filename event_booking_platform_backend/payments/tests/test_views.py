@@ -51,7 +51,7 @@ class PaymentViewTests(APITestCase):
         )
         # Logic from BookingViewSet.perform_create to set initial status
         cls.paid_booking.total_price = cls.paid_event.ticket_price * cls.paid_booking.number_of_tickets
-        cls.paid_booking.payment_status = 'pending'
+        # cls.paid_booking.payment_status = 'pending' # Field removed
         cls.paid_booking.status = Booking.BookingStatus.PENDING_PAYMENT
         cls.paid_booking.save()
         cls.payment_for_paid_booking = Payment.objects.create(
@@ -66,7 +66,7 @@ class PaymentViewTests(APITestCase):
             event=cls.free_event, user=cls.user, number_of_tickets=1
         )
         cls.free_booking.total_price = cls.free_event.ticket_price * cls.free_booking.number_of_tickets
-        cls.free_booking.payment_status = 'not_required'
+        # cls.free_booking.payment_status = 'not_required' # Field removed
         cls.free_booking.status = Booking.BookingStatus.CONFIRMED
         cls.free_booking.save()
 
@@ -75,8 +75,10 @@ class PaymentViewTests(APITestCase):
             event=cls.paid_event, user=cls.user, number_of_tickets=1
         )
         cls.already_paid_booking.total_price = cls.paid_event.ticket_price * cls.already_paid_booking.number_of_tickets
-        cls.already_paid_booking.payment_status = 'paid'
+        # cls.already_paid_booking.payment_status = 'paid' # Field removed
         cls.already_paid_booking.status = Booking.BookingStatus.CONFIRMED
+        # Set payment_intent_id for already paid booking for consistency if webhook logic were to re-verify
+        cls.already_paid_booking.payment_intent_id = 'pi_already_paid_test'
         cls.already_paid_booking.save()
         Payment.objects.create(
             booking=cls.already_paid_booking,
@@ -117,9 +119,12 @@ class PaymentViewTests(APITestCase):
         self.assertEqual(payment.stripe_payment_intent_id, mock_intent_response.id)
         self.assertEqual(payment.status, 'pending') # Should remain pending until webhook confirmation
 
-        # Verify booking payment_status
+        # Verify booking payment_intent_id is updated
         self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'pending')
+        self.assertEqual(self.paid_booking.payment_intent_id, mock_intent_response.id)
+        # Verify booking.status remains PENDING_PAYMENT (or as per logic)
+        self.assertEqual(self.paid_booking.status, Booking.BookingStatus.PENDING_PAYMENT)
+
 
         mock_stripe_pi_create.assert_called_once()
         called_args, called_kwargs = mock_stripe_pi_create.call_args
@@ -145,11 +150,15 @@ class PaymentViewTests(APITestCase):
 
 
     def test_create_payment_intent_for_already_paid_booking(self):
+        # This test logic might need adjustment based on how "already paid" is determined now.
+        # If it's based on Booking.status == CONFIRMED and an existing Payment.status == 'succeeded'
+        # for that booking's payment_intent_id (or related payment), the behavior might differ.
+        # The existing CreatePaymentIntentView checks payment.status == 'succeeded'.
         data = {'booking_id': str(self.already_paid_booking.id)}
         response = self.client.post(self.create_payment_intent_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        # This is caught by serializer validation for booking payment_status
-        self.assertIn("Booking payment status is 'paid'", response.data['booking_id'][0])
+        # The error message comes from the view logic now, not serializer if payment_status is not a direct field
+        self.assertIn('This booking has already been paid.', response.data['error'])
 
 
     @patch('stripe.PaymentIntent.create', side_effect=stripe.error.StripeError("Stripe API Error"))
@@ -163,8 +172,8 @@ class PaymentViewTests(APITestCase):
 
         payment = Payment.objects.get(booking=self.paid_booking)
         self.assertEqual(payment.status, 'failed') # Should be marked failed
-        self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'failed')
+        # self.paid_booking.refresh_from_db() # No direct 'payment_status' field on booking
+        # self.assertEqual(self.paid_booking.payment_status, 'failed') # Field removed
 
 
     @patch('stripe.PaymentIntent.retrieve')
@@ -231,12 +240,17 @@ class PaymentViewTests(APITestCase):
         mock_construct_event.return_value = mock_stripe_event
 
         # Ensure the payment initially has the PI ID and is pending
-        self.payment_for_paid_booking.stripe_payment_intent_id = 'pi_test_webhook_succeeded'
+        # AND the booking has the payment_intent_id for the new webhook logic
+        stripe_pi_id_for_test = 'pi_test_webhook_succeeded'
+        self.paid_booking.payment_intent_id = stripe_pi_id_for_test
+        self.paid_booking.status = Booking.BookingStatus.PENDING_PAYMENT # Ensure it's pending
+        self.paid_booking.save()
+
+        self.payment_for_paid_booking.stripe_payment_intent_id = stripe_pi_id_for_test
         self.payment_for_paid_booking.status = 'pending'
         self.payment_for_paid_booking.save()
-        self.paid_booking.payment_status = 'pending'
-        self.paid_booking.status = Booking.BookingStatus.PENDING_PAYMENT
-        self.paid_booking.save()
+        # self.paid_booking.payment_status = 'pending' # Field removed
+        # self.paid_booking.save() # Already saved above
 
         payload = json.dumps({'type': 'payment_intent.succeeded', 'data': {'object': mock_event_data_object}})
         headers = {'HTTP_STRIPE_SIGNATURE': 'wh_sig_test'} # Signature verification is mocked by construct_event
@@ -252,8 +266,11 @@ class PaymentViewTests(APITestCase):
         self.assertEqual(self.payment_for_paid_booking.status, 'succeeded')
 
         self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'paid')
+        # self.assertEqual(self.paid_booking.payment_status, 'paid') # Field removed
         self.assertEqual(self.paid_booking.status, Booking.BookingStatus.CONFIRMED)
+        # Ensure booking.payment_intent_id is still correctly set (or was set if webhook had to fix it)
+        self.assertEqual(self.paid_booking.payment_intent_id, stripe_pi_id_for_test)
+
 
         mock_send_email.assert_called_once()
         # Example check for email arguments (very basic)
@@ -281,12 +298,16 @@ class PaymentViewTests(APITestCase):
         mock_stripe_event.data.object = mock_event_data_object
         mock_construct_event.return_value = mock_stripe_event
 
-        self.payment_for_paid_booking.stripe_payment_intent_id = 'pi_test_webhook_failed'
+        stripe_pi_id_for_test = 'pi_test_webhook_failed'
+        self.paid_booking.payment_intent_id = stripe_pi_id_for_test
+        self.paid_booking.status = Booking.BookingStatus.PENDING_PAYMENT # Ensure it's pending
+        self.paid_booking.save()
+
+        self.payment_for_paid_booking.stripe_payment_intent_id = stripe_pi_id_for_test
         self.payment_for_paid_booking.status = 'pending'
         self.payment_for_paid_booking.save()
-        self.paid_booking.payment_status = 'pending'
-        self.paid_booking.status = Booking.BookingStatus.PENDING_PAYMENT
-        self.paid_booking.save()
+        # self.paid_booking.payment_status = 'pending' # Field removed
+        # self.paid_booking.save() # Already saved
 
         payload = json.dumps({'type': 'payment_intent.payment_failed', 'data': {'object': mock_event_data_object}})
         headers = {'HTTP_STRIPE_SIGNATURE': 'wh_sig_test_fail'}
@@ -297,10 +318,12 @@ class PaymentViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.payment_for_paid_booking.refresh_from_db()
         self.assertEqual(self.payment_for_paid_booking.status, 'failed')
+
         self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'failed')
-        # Booking status might remain PENDING_PAYMENT or change, depending on desired logic not specified for this field on fail
-        # Current view logic for webhook failure only updates booking.payment_status.
+        # self.assertEqual(self.paid_booking.payment_status, 'failed') # Field removed
+        # Booking status should remain PENDING_PAYMENT as per current webhook logic for failure
+        self.assertEqual(self.paid_booking.status, Booking.BookingStatus.PENDING_PAYMENT)
+        self.assertEqual(self.paid_booking.payment_intent_id, stripe_pi_id_for_test)
 
         mock_send_email.assert_called_once()
         self.assertEqual(mock_send_email.call_args[1]['booking'], self.paid_booking)
@@ -353,7 +376,7 @@ class PaymentViewTests(APITestCase):
             event=self.paid_event, user=other_user, number_of_tickets=1
         )
         other_booking.total_price = self.paid_event.ticket_price * other_booking.number_of_tickets
-        other_booking.payment_status = 'pending'
+        # other_booking.payment_status = 'pending' # Field removed
         other_booking.status = Booking.BookingStatus.PENDING_PAYMENT
         other_booking.save()
         Payment.objects.create(
@@ -371,17 +394,18 @@ class PaymentViewTests(APITestCase):
         self.assertIn("Booking not found or you do not have permission", response.data['error'])
 
     @patch('stripe.Webhook.construct_event')
-    def test_stripe_webhook_payment_not_found(self, mock_construct_event):
-        # Simulate a webhook event for a PI that doesn't match any Payment in our DB
-        non_existent_pi_id = "pi_this_does_not_exist"
-        non_existent_payment_db_id = "00000000-0000-0000-0000-000000000001"
+    def test_stripe_webhook_booking_not_found_by_pi_id(self, mock_construct_event):
+        # Simulate a webhook event for a PI that doesn't match any Booking.payment_intent_id
+        non_existent_stripe_pi_id = "pi_this_booking_pi_id_does_not_exist"
 
         mock_event_data_object = {
-            'id': non_existent_pi_id,
-            'metadata': {
-                'booking_id': str(self.paid_booking.id), # Valid booking for context
+            'id': non_existent_stripe_pi_id, # This PI ID is not on any Booking
+            'amount': 1000, # Some amount
+            'currency': 'usd',
+            'metadata': { # Metadata might be there but Booking lookup by PI ID is primary
+                'booking_id': str(self.paid_booking.id),
                 'user_id': str(self.user.id),
-                'payment_db_id': non_existent_payment_db_id # This payment ID won't be found
+                'payment_db_id': str(self.payment_for_paid_booking.id)
             }
         }
         mock_stripe_event = MagicMock(spec=stripe.Event)
@@ -397,13 +421,15 @@ class PaymentViewTests(APITestCase):
         response = self.client.post(self.stripe_webhook_url, data=payload, content_type='application/json', **headers)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK) # Webhook itself is ack'd
-        # Check logs or some other indicator that an error was handled internally.
-        # The view logs "Payment record not found..."
-        # No email should be sent, no booking status changed.
+        # Check logs for "Booking not found for Stripe PaymentIntent ID..."
+        # No email should be sent, no booking status changed for self.paid_booking
+        original_booking_status = self.paid_booking.status
+        original_payment_status = self.payment_for_paid_booking.status
         self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'pending') # Should remain unchanged
         self.payment_for_paid_booking.refresh_from_db()
-        self.assertEqual(self.payment_for_paid_booking.status, 'pending') # Should remain unchanged
+        self.assertEqual(self.paid_booking.status, original_booking_status)
+        self.assertEqual(self.payment_for_paid_booking.status, original_payment_status)
+
 
     @patch('stripe.Webhook.construct_event')
     def test_stripe_webhook_unhandled_event_type(self, mock_construct_event):
@@ -422,10 +448,12 @@ class PaymentViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Check logs for "Received unhandled Stripe event type"
         # No state change should occur for payment/booking.
+        original_booking_status = self.paid_booking.status
+        original_payment_status = self.payment_for_paid_booking.status
         self.paid_booking.refresh_from_db()
-        self.assertEqual(self.paid_booking.payment_status, 'pending')
         self.payment_for_paid_booking.refresh_from_db()
-        self.assertEqual(self.payment_for_paid_booking.status, 'pending')
+        self.assertEqual(self.paid_booking.status, original_booking_status)
+        self.assertEqual(self.payment_for_paid_booking.status, original_payment_status)
 
 # To run these tests:
 # python manage.py test payments.tests.test_views

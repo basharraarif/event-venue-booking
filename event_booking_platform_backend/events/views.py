@@ -73,7 +73,7 @@ class EventViewSet(viewsets.ModelViewSet):
             # IsEventOrganizer for these actions will also use its has_object_permission.
             self.permission_classes = [IsAuthenticated, (IsAdminUser | IsEventOrganizer)]
         elif self.action in ['list', 'retrieve']:
-            self.permission_classes = [AllowAny]
+            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
         else:
             # Default to deny for any other actions.
             self.permission_classes = [permissions.DenyAll]
