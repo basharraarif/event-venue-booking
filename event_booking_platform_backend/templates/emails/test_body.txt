@@ -1,0 +1,4 @@
+Hello {{ user_name }},
+
+This is a test text email for booking {{ booking_id }} for the event: {{ event_name }}.
+Price: {{ total_price }} {{ currency }}

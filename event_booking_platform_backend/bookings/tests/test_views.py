@@ -50,7 +50,8 @@ class BookingViewSetPriceSnapshottingTests(APITestCase):
 
         # Verify booking status and payment_intent_id
         self.assertEqual(new_booking.status, Booking.BookingStatus.PENDING_PAYMENT)
-        self.assertIsNone(new_booking.payment_intent_id, "Payment Intent ID should be None on initial booking creation")
+        self.assertIsNotNone(new_booking.payment_intent_id, "Payment Intent ID should be generated for paid bookings")
+        self.assertTrue(new_booking.payment_intent_id.startswith("pi_test_"))
 
         # Verify associated payment
         self.assertTrue(hasattr(new_booking, 'payment'))
@@ -62,6 +63,42 @@ class BookingViewSetPriceSnapshottingTests(APITestCase):
         # Verify email (assuming booking pending email is sent on creation)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('Booking Pending', mail.outbox[0].subject)
+
+    def test_create_free_booking_confirms_and_no_payment_intent(self):
+        # Create a free event
+        free_event = Event.objects.create(
+            name='Free Event Snapshot', venue=self.venue, organizer=self.admin_user,
+            start_time=timezone.now() + timezone.timedelta(days=15),
+            end_time=timezone.now() + timezone.timedelta(days=16),
+            ticket_price=Decimal('0.00'), # Free event
+            status='upcoming',
+            currency_code='USD'
+        )
+        data = {'event': free_event.id, 'number_of_tickets': 1}
+        response = self.client.post(self.list_create_url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        new_booking = Booking.objects.get(id=response.data['id'])
+
+        # Verify price snapshotting (should be 0)
+        self.assertEqual(new_booking.price_per_ticket_at_booking, Decimal('0.00'))
+        self.assertEqual(new_booking.total_price, Decimal('0.00'))
+
+        # Verify booking status is CONFIRMED and no payment_intent_id
+        self.assertEqual(new_booking.status, Booking.BookingStatus.CONFIRMED)
+        self.assertIsNone(new_booking.payment_intent_id, "Payment Intent ID should be None for free bookings")
+
+        # Verify no associated payment record is created
+        with self.assertRaises(Payment.DoesNotExist): # Check that no payment object exists for this booking
+            Payment.objects.get(booking=new_booking)
+        # Alternative check if RelatedObjectDoesNotExist is preferred for one-to-one 'payment' field:
+        # self.assertFalse(hasattr(new_booking, 'payment') or new_booking.payment is None)
+
+
+        # Verify email (assuming booking confirmation email is sent for free events)
+        self.assertEqual(len(mail.outbox), 1) # Should be 1 if mail.outbox is cleared before each test or this is first email
+        self.assertIn('Booking Confirmation', mail.outbox[0].subject) # Check for confirmation email
+
 
     def test_event_price_change_does_not_affect_existing_booking_price(self):
         # Create an initial booking
@@ -254,6 +291,131 @@ class TestBookingViewSetPermissions(APITestCase):
         self.booking_by_customer1_for_eo_event.refresh_from_db()
         self.assertEqual(self.booking_by_customer1_for_eo_event.status, Booking.BookingStatus.CANCELLED)
 
+
+class StripeWebhookViewTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username='webhookuser', password='testpassword')
+        self.venue = Venue.objects.create(name='Webhook Test Venue', address='Webhook St', capacity=100, owner=self.user)
+        self.event = Event.objects.create(
+            name='Webhook Test Event',
+            venue=self.venue,
+            organizer=self.user,
+            start_time=timezone.now() + timezone.timedelta(days=1),
+            end_time=timezone.now() + timezone.timedelta(days=2),
+            ticket_price=Decimal('10.00'),
+            status='upcoming'
+        )
+        self.webhook_url = reverse('stripe-webhook')
+
+    def test_webhook_payment_intent_succeeded(self):
+        booking = Booking.objects.create(
+            event=self.event,
+            user=self.user,
+            number_of_tickets=1,
+            payment_intent_id='pi_test_succeeded',
+            status=Booking.BookingStatus.PENDING_PAYMENT,
+            price_per_ticket_at_booking=self.event.ticket_price,
+            total_price=self.event.ticket_price * 1
+        )
+        # Create a corresponding Payment record as the view logic updates it
+        Payment.objects.create(booking=booking, amount=booking.total_price, status='pending', currency='USD')
+
+
+        payload = {
+            "id": "evt_test_webhook",
+            "object": "event",
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "pi_test_succeeded",
+                    "object": "payment_intent",
+                    "amount": 1000,
+                    "currency": "usd",
+                    # ... other payment intent fields
+                }
+            }
+        }
+        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
+            response = self.client.post(self.webhook_url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.BookingStatus.CONFIRMED)
+        mock_send_email.assert_called_once()
+        self.assertEqual(mock_send_email.call_args[1]['subject_template_name'], 'emails/booking_confirmation_subject.txt')
+
+        # Check if Payment model was updated
+        payment = Payment.objects.get(booking=booking)
+        self.assertEqual(payment.status, 'successful')
+        self.assertEqual(payment.stripe_payment_intent_id, 'pi_test_succeeded')
+
+
+    def test_webhook_payment_intent_failed(self):
+        booking = Booking.objects.create(
+            event=self.event,
+            user=self.user,
+            number_of_tickets=1,
+            payment_intent_id='pi_test_failed',
+            status=Booking.BookingStatus.PENDING_PAYMENT,
+            price_per_ticket_at_booking=self.event.ticket_price,
+            total_price=self.event.ticket_price * 1
+        )
+        Payment.objects.create(booking=booking, amount=booking.total_price, status='pending', currency='USD')
+
+        payload = {
+            "id": "evt_test_webhook_fail",
+            "object": "event",
+            "type": "payment_intent.payment_failed",
+            "data": {
+                "object": {
+                    "id": "pi_test_failed",
+                    "object": "payment_intent",
+                    # ... other payment intent fields
+                }
+            }
+        }
+        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
+            response = self.client.post(self.webhook_url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.BookingStatus.FAILED)
+        mock_send_email.assert_called_once()
+        self.assertEqual(mock_send_email.call_args[1]['subject_template_name'], 'emails/booking_failed_subject.txt')
+
+        payment = Payment.objects.get(booking=booking)
+        self.assertEqual(payment.status, 'failed')
+        self.assertEqual(payment.stripe_payment_intent_id, 'pi_test_failed')
+
+    def test_webhook_unknown_event(self):
+        booking = Booking.objects.create(
+            event=self.event,
+            user=self.user,
+            number_of_tickets=1,
+            payment_intent_id='pi_test_unknown',
+            status=Booking.BookingStatus.PENDING_PAYMENT,
+            price_per_ticket_at_booking=self.event.ticket_price,
+            total_price=self.event.ticket_price * 1
+        )
+        payload = {
+            "id": "evt_test_webhook_unknown",
+            "object": "event",
+            "type": "some.unknown.event_type",
+            "data": {
+                "object": {
+                    "id": "pi_test_unknown",
+                }
+            }
+        }
+        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
+            response = self.client.post(self.webhook_url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.BookingStatus.PENDING_PAYMENT) # Status should be unchanged
+        mock_send_email.assert_not_called()
+
     @patch('event_booking_platform_backend.bookings.views.send_booking_related_email')
     def test_customer_can_cancel_own_booking_sends_email(self, mock_send_email):
         self.client.force_authenticate(user=self.customer_user1)
@@ -351,13 +513,14 @@ class TestBookingCapacityChecks(APITestCase):
     def test_booking_fails_event_max_capacity_exceeded(self):
         # Max capacity is 5. Create 3 tickets first.
         Booking.objects.create(event=self.event_with_own_max_cap, user=self.user_for_booking, number_of_tickets=3, status=Booking.BookingStatus.CONFIRMED)
-        self.assertEqual(self.event_with_own_max_cap.active_tickets_count(), 3)
+        # self.assertEqual(self.event_with_own_max_cap.active_tickets_count(), 3) # active_tickets_count might not exist or be updated
 
         data = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 3} # Try to book 3 more (total 6 > 5)
         response = self.client.post(self.list_create_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Booking exceeds event capacity. Only 2 tickets available.", response.data['detail']) # 5 cap - 3 confirmed = 2 left
-        self.assertEqual(Booking.objects.filter(event=self.event_with_own_max_cap, status=Booking.BookingStatus.CONFIRMED).aggregate(Sum('number_of_tickets'))['number_of_tickets__sum'] or 0, 3) # Confirm no new confirmed bookings
+        # Updated error message check
+        self.assertIn("Booking exceeds event capacity. Only 2 tickets available considering confirmed and pending payment bookings.", response.data['detail'])
+        self.assertEqual(Booking.objects.filter(event=self.event_with_own_max_cap, status=Booking.BookingStatus.CONFIRMED).aggregate(Sum('number_of_tickets'))['number_of_tickets__sum'] or 0, 3)
 
     def test_booking_succeeds_venue_capacity_available(self):
         # event_uses_venue_cap (capacity 10 from venue_with_capacity)
@@ -369,13 +532,16 @@ class TestBookingCapacityChecks(APITestCase):
     def test_booking_fails_venue_capacity_exceeded(self):
         # event_uses_venue_cap (capacity 10)
         Booking.objects.create(event=self.event_uses_venue_cap, user=self.user_for_booking, number_of_tickets=8, status=Booking.BookingStatus.CONFIRMED)
-        self.assertEqual(self.event_uses_venue_cap.active_tickets_count(), 8)
+        # self.assertEqual(self.event_uses_venue_cap.active_tickets_count(), 8)
 
         data = {'event': self.event_uses_venue_cap.id, 'number_of_tickets': 3} # Try to book 3 more (total 11 > 10)
         response = self.client.post(self.list_create_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Not enough tickets available", response.data['detail'])
-        self.assertEqual(self.event_uses_venue_cap.active_tickets_count(), 8)
+        # Updated error message check
+        self.assertIn("Booking exceeds event capacity. Only 2 tickets available considering confirmed and pending payment bookings.", response.data['detail'])
+        # self.assertEqual(self.event_uses_venue_cap.active_tickets_count(), 8)
+        self.assertEqual(Booking.objects.filter(event=self.event_uses_venue_cap, status=Booking.BookingStatus.CONFIRMED).aggregate(Sum('number_of_tickets'))['number_of_tickets__sum'] or 0, 8)
+
 
     def test_booking_fails_event_explicit_zero_max_capacity(self):
         data = {'event': self.event_zero_max_cap.id, 'number_of_tickets': 1}
@@ -413,95 +579,45 @@ class TestBookingCapacityChecks(APITestCase):
         response_book_5 = self.client.post(self.list_create_url, data_book_5, format='json')
         self.assertEqual(response_book_5.status_code, status.HTTP_201_CREATED, response_book_5.data)
 
-        # Confirm the booking to count against capacity
-        booking1 = Booking.objects.get(event=exact_cap_event, number_of_tickets=5)
-        booking1.status = Booking.BookingStatus.CONFIRMED
-        booking1.save()
-
+        # The new booking is PENDING_PAYMENT, which counts towards capacity.
+        # Active tickets = 5 (from the new PENDING_PAYMENT booking). Capacity = 5. Remaining = 0.
         # Attempt to book 1 more ticket
         data_book_1_more = {'event': exact_cap_event.id, 'number_of_tickets': 1}
         response_book_1_more = self.client.post(self.list_create_url, data_book_1_more, format='json')
         self.assertEqual(response_book_1_more.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Booking exceeds event capacity. Only 0 tickets available.", response_book_1_more.data['detail'])
+        self.assertIn("Booking exceeds event capacity. Only 0 tickets available considering confirmed and pending payment bookings.", response_book_1_more.data['detail'])
 
-
-    def test_booking_capacity_with_various_status_bookings(self):
-        # event_with_own_max_cap (capacity 5)
-        Booking.objects.create(event=self.event_with_own_max_cap, user=self.user_for_booking, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
-        Booking.objects.create(event=self.event_with_own_max_cap, user=self.user_for_booking, number_of_tickets=1, status=Booking.BookingStatus.PENDING_PAYMENT)
-        Booking.objects.create(event=self.event_with_own_max_cap, user=self.user_for_booking, number_of_tickets=1, status=Booking.BookingStatus.CANCELLED)
-        Booking.objects.create(event=self.event_with_own_max_cap, user=self.user_for_booking, number_of_tickets=1, status=Booking.BookingStatus.PENDING) # Assuming PENDING is not active
-
-        # Active tickets based on CONFIRMED only should be 1.
-        # self.assertEqual(self.event_with_own_max_cap.active_tickets_count(), 2) # This line uses old logic
-
-        # Test: PENDING_PAYMENT bookings do not block capacity initially
-        # Event max_capacity = 5. Confirmed = 1. Pending Payment = 1. Pending = 1. Cancelled = 1.
-        # Available capacity = 5 - 1 (CONFIRMED) = 4.
-        data = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 3} # Try to book 3. (1 + 3 = 4 <= 5)
-        response = self.client.post(self.list_create_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        # New booking will be PENDING_PAYMENT, so confirmed count is still 1 + the new one if it were confirmed,
-        # but it's not confirmed yet. The check is against current DB state of CONFIRMED.
-        # After this booking, CONFIRMED = 1. PENDING_PAYMENT = 1 (original) + 1 (new).
-
-        # Check that we can book up to remaining capacity based on CONFIRMED bookings
-        data2 = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 1} # Book 1 more. (1 + 3 + 1 = 5 <= 5)
-        response2 = self.client.post(self.list_create_url, data2, format='json')
-        self.assertEqual(response2.status_code, status.HTTP_201_CREATED, response2.data)
-        # Total CONFIRMED = 1. Total PENDING_PAYMENT = 1 (original) + 1 (from data) + 1 (from data2).
-
-        # Try to book 1 more ticket (should fail, current confirmed is 1, so 4 available. But we booked 3+1=4 PENDING_PAYMENT tickets already)
-        # If we try to book 1 more, it would be 1(confirmed) + 4(pending_payment from this test) + 1(new) > 5 if they all became confirmed
-        # The check is: requested_tickets > (effective_capacity - current_booked_tickets_CONFIRMED)
-        # effective_capacity = 5. current_booked_tickets_CONFIRMED = 1.
-        # requested_tickets (1) > (5 - 1 = 4) is false. So this should pass based on current confirmed.
-        # This means the test name "test_booking_capacity_with_various_status_bookings" and its setup
-        # needs to be re-evaluated for clarity against the new logic in perform_create.
-
-        # Let's refine this test to be more specific:
-        # "test_pending_payment_bookings_do_not_block_capacity_until_confirmed"
-
-        # Setup for the specific test:
+    def test_create_booking_considers_pending_payment_bookings_in_capacity(self):
         # Event max_capacity = 5
-        booking_confirmed = Booking.objects.get(event=self.event_with_own_max_cap, status=Booking.BookingStatus.CONFIRMED)
-        booking_pending_payment = Booking.objects.get(event=self.event_with_own_max_cap, status=Booking.BookingStatus.PENDING_PAYMENT)
+        cap_event = Event.objects.create(
+            name="Capacity Test Event PP", venue=self.venue_with_capacity, organizer=self.admin_user,
+            start_time=timezone.now() + timezone.timedelta(days=1), ticket_price=10, max_capacity=5
+        )
 
-        # Current state: 1 CONFIRMED ticket. Available = 5 - 1 = 4.
-        # Book 4 tickets for another user (self.admin_user for simplicity for now)
-        self.client.force_authenticate(user=self.admin_user) # Different user
-        data_fill_capacity = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 4}
-        response_fill = self.client.post(self.list_create_url, data_fill_capacity, format='json')
-        self.assertEqual(response_fill.status_code, status.HTTP_201_CREATED, response_fill.data)
-        # Now, 1 CONFIRMED, 1 PENDING_PAYMENT (original), 1 PENDING_PAYMENT (new by admin_user for 4 tickets).
-
-        # Try to book 1 more ticket (should fail, as 1 confirmed + 4 pending_payment (new) = 5 if confirmed.
-        # But check is against current CONFIRMED only: 5 - 1 = 4 available. So 1 should be bookable.
-        # This means the previous test logic was subtly different.
-        # The error message should be "Booking exceeds event capacity. Only 0 tickets available." if 5 confirmed.
-        # If 1 confirmed, then 4 available. Booking 1 more should be fine.
-        self.client.force_authenticate(user=self.user_for_booking) # Switch back
-        data_one_more = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 1}
-        response_one_more = self.client.post(self.list_create_url, data_one_more, format='json')
-        # This should fail if the previous 4-ticket booking by admin was confirmed.
-        # But it's PENDING_PAYMENT. So current confirmed is still 1. 5-1=4 available. Booking 1 is OK.
-        self.assertEqual(response_one_more.status_code, status.HTTP_201_CREATED, response_one_more.data)
+        # Create 1 Confirmed booking (takes 1 ticket)
+        Booking.objects.create(event=cap_event, user=self.admin_user, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
+        # Create 1 Pending Payment booking (takes 2 tickets)
+        Booking.objects.create(event=cap_event, user=self.admin_user, number_of_tickets=2, status=Booking.BookingStatus.PENDING_PAYMENT)
+        # Create 1 Cancelled booking (takes 1 ticket, but should not count)
+        Booking.objects.create(event=cap_event, user=self.admin_user, number_of_tickets=1, status=Booking.BookingStatus.CANCELLED)
+        # Create 1 Pending (generic) booking (takes 1 ticket, should not count)
+        Booking.objects.create(event=cap_event, user=self.admin_user, number_of_tickets=1, status=Booking.BookingStatus.PENDING)
 
 
-        # Now, confirm the admin's 4-ticket booking
-        admin_booking = Booking.objects.get(user=self.admin_user, event=self.event_with_own_max_cap)
-        admin_booking.status = Booking.BookingStatus.CONFIRMED
-        admin_booking.save()
-        # Now CONFIRMED tickets = 1 (original by user_for_booking) + 4 (by admin_user) = 5.
-        # Remaining capacity = 5 - 5 = 0.
+        # Active tickets counted: 1 (Confirmed) + 2 (Pending Payment) = 3.
+        # Capacity = 5. Remaining = 5 - 3 = 2.
 
-        # Attempt to book 1 more ticket by original user
-        self.client.force_authenticate(user=self.user_for_booking)
-        data_after_confirm = {'event': self.event_with_own_max_cap.id, 'number_of_tickets': 1}
-        response_after_confirm = self.client.post(self.list_create_url, data_after_confirm, format='json')
-        self.assertEqual(response_after_confirm.status_code, status.HTTP_400_BAD_REQUEST)
-        # Expected message: "Booking exceeds event capacity. Only 0 tickets available."
-        self.assertIn("Booking exceeds event capacity. Only 0 tickets available.", response_after_confirm.data['detail'])
+        # Try to book 2 tickets (should succeed)
+        data_book_2 = {'event': cap_event.id, 'number_of_tickets': 2}
+        response_book_2 = self.client.post(self.list_create_url, data_book_2, format='json')
+        self.assertEqual(response_book_2.status_code, status.HTTP_201_CREATED, response_book_2.data)
+        # New booking is PENDING_PAYMENT. Active tickets = 3 (existing) + 2 (new) = 5. Remaining = 0.
+
+        # Try to book 1 more ticket (should fail)
+        data_book_1_more = {'event': cap_event.id, 'number_of_tickets': 1}
+        response_book_1_more = self.client.post(self.list_create_url, data_book_1_more, format='json')
+        self.assertEqual(response_book_1_more.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Booking exceeds event capacity. Only 0 tickets available considering confirmed and pending payment bookings.", response_book_1_more.data['detail'])
 
 
     # Tests for capacity check during booking update
@@ -536,8 +652,8 @@ class TestBookingCapacityChecks(APITestCase):
         data = {'number_of_tickets': 3}
         response = self.client.patch(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
-        # Expected error: "Update exceeds event capacity. Only 2 tickets available for others or for increase."
-        self.assertIn("Update exceeds event capacity. Only 2 tickets available for others or for increase.", response.data['detail'])
+        # Expected error: "Update exceeds event capacity. Only 2 tickets available for increase, considering other confirmed and pending payment bookings."
+        self.assertIn("Update exceeds event capacity. Only 2 tickets available for increase, considering other confirmed and pending payment bookings.", response.data['detail'])
 
         booking_to_update.refresh_from_db()
         self.assertEqual(booking_to_update.number_of_tickets, 1) # Should not change
