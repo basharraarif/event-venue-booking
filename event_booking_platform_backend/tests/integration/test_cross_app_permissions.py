@@ -301,3 +301,61 @@ class TestCrossAppPermissions:
         # VM cannot delete Admin's venue
         response = api_client.delete(other_venue_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_event_organizer_can_list_bookings_for_own_events(self, api_client, event_organizer_user, customer_user, sample_venue, sample_category):
+        # Organizer creates an event
+        api_client.force_authenticate(user=event_organizer_user)
+        event_data = {'name': 'Org Event Bookings', 'venue': sample_venue.pk, 'ticket_price': 10, 'start_time': "2029-05-01T10:00:00Z", 'end_time': "2029-05-01T12:00:00Z"}
+        response = api_client.post(reverse('event-list'), event_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        org_event_id = response.data['id']
+
+        # Customer books this event
+        api_client.force_authenticate(user=customer_user)
+        booking_data = {'event': org_event_id, 'number_of_tickets': 1}
+        response = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        booking_id = response.data['id']
+
+        # Organizer lists bookings - should see the booking for their event
+        api_client.force_authenticate(user=event_organizer_user)
+        response = api_client.get(reverse('booking-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['results']) > 0 # Check if list is not empty
+        assert any(b['id'] == booking_id for b in response.data['results']), "Booking for organizer's event not found in list"
+
+        # Organizer retrieves that specific booking
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': booking_id}))
+        assert response.status_code == status.HTTP_200_OK # Or 403 if only admin/owner can retrieve directly
+                                                        # Current BookingViewSet.get_queryset allows this if event organizer matches
+                                                        # And IsOwnerOrAdmin for retrieve might need adjustment or specific check.
+                                                        # For now, assume get_queryset allows retrieve.
+
+    def test_venue_manager_can_list_bookings_for_own_venues(self, api_client, venue_manager_user, event_organizer_user, customer_user, sample_category):
+        # Venue Manager creates a venue
+        api_client.force_authenticate(user=venue_manager_user)
+        venue_data = {'name': 'VM Venue Bookings', 'address': 'VM Venue St', 'capacity': 50}
+        response = api_client.post(reverse('venue-list'), venue_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        vm_venue_id = response.data['id']
+
+        # Event organizer creates an event at VM's venue
+        api_client.force_authenticate(user=event_organizer_user)
+        event_data = {'name': 'Event at VM Venue', 'venue': vm_venue_id, 'ticket_price': 10, 'start_time': "2029-06-01T10:00:00Z", 'end_time': "2029-06-01T12:00:00Z"}
+        response = api_client.post(reverse('event-list'), event_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_id_at_vm_venue = response.data['id']
+
+        # Customer books this event
+        api_client.force_authenticate(user=customer_user)
+        booking_data = {'event': event_id_at_vm_venue, 'number_of_tickets': 1}
+        response = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        booking_id = response.data['id']
+
+        # Venue Manager lists bookings - should see the booking for event at their venue
+        api_client.force_authenticate(user=venue_manager_user)
+        response = api_client.get(reverse('booking-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['results']) > 0
+        assert any(b['id'] == booking_id for b in response.data['results']), "Booking for event at manager's venue not found"

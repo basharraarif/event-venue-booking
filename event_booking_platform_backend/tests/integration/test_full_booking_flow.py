@@ -298,6 +298,54 @@ class TestFullBookingFlow:
         assert 'payment_failed_body.html' in call_kwargs['body_html_template_name']
         assert 'payment_failed_body.txt' in call_kwargs['body_text_template_name']
 
+    @patch('core.email_utils.send_booking_related_email')
+    def test_successful_free_event_booking_flow(self, mock_send_email, api_client, regular_user, venue, event_organizer, category):
+        # Setup a free event
+        free_event = Event.objects.create(
+            name='Full Flow Free Event',
+            description='Event for testing free booking flow.',
+            start_time='2028-12-02T10:00:00Z',
+            end_time='2028-12-02T12:00:00Z',
+            venue=venue,
+            organizer=event_organizer,
+            ticket_price=Decimal('0.00'), # Free event
+            currency='USD',
+            max_capacity=50,
+            status=Event.EventStatus.UPCOMING
+        )
+        free_event.categories.add(category)
+
+        api_client.force_authenticate(user=regular_user)
+
+        booking_url = reverse('booking-list')
+        booking_data = {
+            'event': free_event.pk,
+            'number_of_tickets': 1
+        }
+        response = api_client.post(booking_url, booking_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        booking_id = response.data['id']
+        booking = Booking.objects.get(pk=booking_id)
+
+        assert booking.user == regular_user
+        assert booking.number_of_tickets == 1
+        assert booking.price_per_ticket_at_booking == free_event.ticket_price
+        assert booking.total_price == Decimal('0.00')
+        # Verify booking status is CONFIRMED for free event
+        assert booking.status == Booking.BookingStatus.CONFIRMED
+        assert booking.payment_intent_id is None
+
+        # Verify no Payment object was created
+        assert not Payment.objects.filter(booking=booking).exists()
+
+        # Verify "booking confirmation" email was triggered
+        mock_send_email.assert_called_once()
+        (call_args, call_kwargs) = mock_send_email.call_args_list[0]
+        assert call_kwargs['booking'] == booking
+        assert 'booking_confirmation_subject.txt' in call_kwargs['subject_template_name']
+        # Ensure it's not a payment-related confirmation if logic differs
+        # For now, assume generic confirmation is fine.
+
 # To ensure pytest discovery, ensure:
 # 1. Filename is `test_*.py` or `*_test.py`.
 # 2. The `tests` directory and `tests/integration` directory have `__init__.py`.

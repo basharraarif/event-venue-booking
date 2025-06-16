@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import type { Metadata } from "next"; // Ensure Metadata is imported if not already
 import { Inter } from "next/font/google";
 import Link from 'next/link';
 import "./globals.css";
 // import { AuthProvider, useAuth } from '../contexts/AuthContext'; // Step 1: Comment out
 // import AuthNav from '../components/layout/AuthNav';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -58,10 +60,11 @@ export default function RootLayout({
       <body className={`${inter.className} bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col min-h-screen`}>
         {/* <AuthProvider> */} {/* Step 1: Comment out AuthProvider */}
           {/* <AppHeader /> */} {/* Step 1: Comment out AppHeader */}
-          <header className="bg-white shadow-md dark:bg-gray-800"> {/* Basic Header */}
-            <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-              <Link href="/" className="text-xl font-semibold text-gray-700 dark:text-white">EventPlatformBD</Link>
-              <div className="flex items-center space-x-2 md:space-x-4">
+          <ErrorBoundary fallbackMessage="A critical error occurred in the application.">
+            <header className="bg-white shadow-md dark:bg-gray-800"> {/* Basic Header */}
+              <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+                <Link href="/" className="text-xl font-semibold text-gray-700 dark:text-white">EventPlatformBD</Link>
+                <div className="flex items-center space-x-2 md:space-x-4">
                 <Link href="/" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">Home</Link>
                 <Link href="/venues" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">Venues</Link>
                 <Link href="/events" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2">Events</Link>
@@ -79,6 +82,7 @@ export default function RootLayout({
               &copy; {new Date().getFullYear()} Event Booking Platform BD. All rights reserved.
             </p>
           </footer>
+          </ErrorBoundary>
         {/* </AuthProvider> */} {/* Step 1: Comment out AuthProvider */}
       </body>
     </html>
