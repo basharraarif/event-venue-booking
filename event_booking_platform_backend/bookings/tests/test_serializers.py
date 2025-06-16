@@ -125,17 +125,18 @@ class BookingSerializerTests(TestCase):
         booking1.status = Booking.BookingStatus.CONFIRMED # Confirm booking to count against capacity
         booking1.save()
 
-        self.assertEqual(self.event.confirmed_tickets_count(), 1)
+        # Use active_tickets_count as it reflects what capacity check considers (CONFIRMED + PENDING_PAYMENT)
+        self.assertEqual(self.event.active_tickets_count(), 1)
 
         # User 2 books 1 ticket (0 remaining)
         data2 = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer2 = BookingSerializer(data=data2, context=self.serializer_context)
         self.assertTrue(serializer2.is_valid(), serializer2.errors)
         booking2 = serializer2.save(user=user2)
-        booking2.status = Booking.BookingStatus.CONFIRMED
+        booking2.status = Booking.BookingStatus.CONFIRMED # Explicitly set to CONFIRMED for this test logic
         booking2.save()
 
-        self.assertEqual(self.event.confirmed_tickets_count(), 2)
+        self.assertEqual(self.event.active_tickets_count(), 2)
 
         # User 3 tries to book 1 ticket (should fail)
         data3 = {'event': self.event.pk, 'number_of_tickets': 1}
@@ -238,9 +239,19 @@ class BookingSerializerTests(TestCase):
         booking.status = Booking.BookingStatus.CONFIRMED
         booking.save()
 
-        self.assertEqual(self.event.confirmed_tickets_count(), 100)
+        self.assertEqual(self.event.active_tickets_count(), 100)
 
         data_fail = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer_fail = BookingSerializer(data=data_fail, context=self.serializer_context)
         self.assertFalse(serializer_fail.is_valid())
         self.assertIn("Only 0 ticket(s) currently available", str(serializer_fail.errors['number_of_tickets'][0])) # Adjusted wording
+
+    def test_fail_booking_for_cancelled_event(self):
+        self.event.status = 'cancelled'
+        self.event.save()
+
+        data = {'event': self.event.pk, 'number_of_tickets': 1}
+        serializer = BookingSerializer(data=data, context=self.serializer_context)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('event', serializer.errors)
+        self.assertIn("Bookings can only be made for 'upcoming' or 'ongoing' events.", str(serializer.errors['event'][0]))
