@@ -50,8 +50,9 @@ class BookingViewSetPriceSnapshottingTests(APITestCase):
 
         # Verify booking status and payment_intent_id
         self.assertEqual(new_booking.status, Booking.BookingStatus.PENDING_PAYMENT)
-        self.assertIsNotNone(new_booking.payment_intent_id, "Payment Intent ID should be generated for paid bookings")
-        self.assertTrue(new_booking.payment_intent_id.startswith("pi_test_"))
+        # payment_intent_id is no longer set by perform_create directly.
+        # It's set when the frontend calls CreatePaymentIntentView.
+        self.assertIsNone(new_booking.payment_intent_id, "Payment Intent ID should be None initially for paid bookings")
 
         # Verify associated payment
         self.assertTrue(hasattr(new_booking, 'payment'))
@@ -284,155 +285,62 @@ class TestBookingViewSetPermissions(APITestCase):
 
     def test_customer_can_cancel_own_booking(self): # Assumes cancel is a PATCH/UPDATE or specific action
         self.client.force_authenticate(user=self.customer_user1)
-        # Assuming 'cancel_booking' is a custom action on the detail view
-        url = reverse('booking-cancel-booking', kwargs={'pk': self.booking_by_customer1_for_eo_event.pk})
-        response = self.client.post(url) # POST for actions typically
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.booking_by_customer1_for_eo_event.refresh_from_db()
-        self.assertEqual(self.booking_by_customer1_for_eo_event.status, Booking.BookingStatus.CANCELLED)
 
-
-class StripeWebhookViewTests(APITestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username='webhookuser', password='testpassword')
-        self.venue = Venue.objects.create(name='Webhook Test Venue', address='Webhook St', capacity=100, owner=self.user)
-        self.event = Event.objects.create(
-            name='Webhook Test Event',
-            venue=self.venue,
-            organizer=self.user,
-            start_time=timezone.now() + timezone.timedelta(days=1),
-            end_time=timezone.now() + timezone.timedelta(days=2),
-            ticket_price=Decimal('10.00'),
-            status='upcoming'
-        )
-        self.webhook_url = reverse('stripe-webhook')
-
-    def test_webhook_payment_intent_succeeded(self):
-        booking = Booking.objects.create(
-            event=self.event,
-            user=self.user,
-            number_of_tickets=1,
-            payment_intent_id='pi_test_succeeded',
-            status=Booking.BookingStatus.PENDING_PAYMENT,
-            price_per_ticket_at_booking=self.event.ticket_price,
-            total_price=self.event.ticket_price * 1
-        )
-        # Create a corresponding Payment record as the view logic updates it
-        Payment.objects.create(booking=booking, amount=booking.total_price, status='pending', currency='USD')
-
-
-        payload = {
-            "id": "evt_test_webhook",
-            "object": "event",
-            "type": "payment_intent.succeeded",
-            "data": {
-                "object": {
-                    "id": "pi_test_succeeded",
-                    "object": "payment_intent",
-                    "amount": 1000,
-                    "currency": "usd",
-                    # ... other payment intent fields
-                }
-            }
-        }
-        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
-            response = self.client.post(self.webhook_url, payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        booking.refresh_from_db()
-        self.assertEqual(booking.status, Booking.BookingStatus.CONFIRMED)
-        mock_send_email.assert_called_once()
-        self.assertEqual(mock_send_email.call_args[1]['subject_template_name'], 'emails/booking_confirmation_subject.txt')
-
-        # Check if Payment model was updated
-        payment = Payment.objects.get(booking=booking)
-        self.assertEqual(payment.status, 'successful')
-        self.assertEqual(payment.stripe_payment_intent_id, 'pi_test_succeeded')
-
-
-    def test_webhook_payment_intent_failed(self):
-        booking = Booking.objects.create(
-            event=self.event,
-            user=self.user,
-            number_of_tickets=1,
-            payment_intent_id='pi_test_failed',
-            status=Booking.BookingStatus.PENDING_PAYMENT,
-            price_per_ticket_at_booking=self.event.ticket_price,
-            total_price=self.event.ticket_price * 1
-        )
-        Payment.objects.create(booking=booking, amount=booking.total_price, status='pending', currency='USD')
-
-        payload = {
-            "id": "evt_test_webhook_fail",
-            "object": "event",
-            "type": "payment_intent.payment_failed",
-            "data": {
-                "object": {
-                    "id": "pi_test_failed",
-                    "object": "payment_intent",
-                    # ... other payment intent fields
-                }
-            }
-        }
-        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
-            response = self.client.post(self.webhook_url, payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        booking.refresh_from_db()
-        self.assertEqual(booking.status, Booking.BookingStatus.FAILED)
-        mock_send_email.assert_called_once()
-        self.assertEqual(mock_send_email.call_args[1]['subject_template_name'], 'emails/booking_failed_subject.txt')
-
-        payment = Payment.objects.get(booking=booking)
-        self.assertEqual(payment.status, 'failed')
-        self.assertEqual(payment.stripe_payment_intent_id, 'pi_test_failed')
-
-    def test_webhook_unknown_event(self):
-        booking = Booking.objects.create(
-            event=self.event,
-            user=self.user,
-            number_of_tickets=1,
-            payment_intent_id='pi_test_unknown',
-            status=Booking.BookingStatus.PENDING_PAYMENT,
-            price_per_ticket_at_booking=self.event.ticket_price,
-            total_price=self.event.ticket_price * 1
-        )
-        payload = {
-            "id": "evt_test_webhook_unknown",
-            "object": "event",
-            "type": "some.unknown.event_type",
-            "data": {
-                "object": {
-                    "id": "pi_test_unknown",
-                }
-            }
-        }
-        with patch('event_booking_platform_backend.bookings.views.send_booking_related_email') as mock_send_email:
-            response = self.client.post(self.webhook_url, payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        booking.refresh_from_db()
-        self.assertEqual(booking.status, Booking.BookingStatus.PENDING_PAYMENT) # Status should be unchanged
-        mock_send_email.assert_not_called()
-
-    @patch('event_booking_platform_backend.bookings.views.send_booking_related_email')
-    def test_customer_can_cancel_own_booking_sends_email(self, mock_send_email):
-        self.client.force_authenticate(user=self.customer_user1)
+        # Ensure the booking is in a state that can be cancelled and has a pending payment
         booking_to_cancel = self.booking_by_customer1_for_eo_event
-        # Ensure booking is not already cancelled for a clean test
-        booking_to_cancel.status = Booking.BookingStatus.CONFIRMED
+        booking_to_cancel.status = Booking.BookingStatus.PENDING_PAYMENT # Set to pending payment
+        booking_to_cancel.total_price = booking_to_cancel.event.ticket_price * booking_to_cancel.number_of_tickets # Ensure total_price is calculated
+        booking_to_cancel.price_per_ticket_at_booking = booking_to_cancel.event.ticket_price
         booking_to_cancel.save()
 
-        url = reverse('booking-cancel-booking', kwargs={'pk': booking_to_cancel.pk})
-        response = self.client.post(url)
+        # Create a pending payment for this booking
+        associated_payment, _ = Payment.objects.update_or_create(
+            booking=booking_to_cancel,
+            defaults={
+                'amount': booking_to_cancel.total_price,
+                'currency': booking_to_cancel.event.currency_code if hasattr(booking_to_cancel.event, 'currency_code') and booking_to_cancel.event.currency_code else 'USD',
+                'status': 'pending'
+            }
+        )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse('booking-cancel-booking', kwargs={'pk': booking_to_cancel.pk})
+        response = self.client.post(url) # POST for actions typically
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
         booking_to_cancel.refresh_from_db()
         self.assertEqual(booking_to_cancel.status, Booking.BookingStatus.CANCELLED)
 
+        # Check if the associated payment was also cancelled
+        associated_payment.refresh_from_db()
+        self.assertEqual(associated_payment.status, 'cancelled')
+
+    @patch('event_booking_platform_backend.bookings.views.send_booking_related_email')
+    def test_customer_can_cancel_own_booking_sends_email(self, mock_send_email): # Renamed to avoid conflict, ensure this is desired test
+        self.client.force_authenticate(user=self.customer_user1)
+        # Setup for this specific test if it's different from the general cancel test
+        booking_to_cancel_for_email_test = self.booking_by_customer1_for_vms_event # Use a different booking
+        booking_to_cancel_for_email_test.status = Booking.BookingStatus.CONFIRMED # Example initial state
+        booking_to_cancel_for_email_test.save()
+        # Create a pending payment if payment cancellation aspect is also tested for email
+        Payment.objects.update_or_create(
+            booking=booking_to_cancel_for_email_test,
+            defaults={
+                'amount': booking_to_cancel_for_email_test.total_price,
+                'currency': 'USD',
+                'status': 'pending'
+            }
+        )
+
+
+        url = reverse('booking-cancel-booking', kwargs={'pk': booking_to_cancel_for_email_test.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking_to_cancel_for_email_test.refresh_from_db()
+        self.assertEqual(booking_to_cancel_for_email_test.status, Booking.BookingStatus.CANCELLED)
+
         mock_send_email.assert_called_once_with(
-            booking=booking_to_cancel,
+            booking=booking_to_cancel_for_email_test,
             subject_template_name='emails/booking_cancelled_subject.txt',
             body_html_template_name='emails/booking_cancelled_body.html',
             body_text_template_name='emails/booking_cancelled_body.txt'
@@ -725,8 +633,28 @@ class TestBookingCapacityChecks(APITestCase):
 
     def test_admin_can_cancel_any_booking(self):
         self.client.force_authenticate(user=self.admin_user)
-        url = reverse('booking-cancel-booking', kwargs={'pk': self.booking_by_customer1_for_eo_event.pk})
+
+        booking_to_cancel_by_admin = self.booking_by_customer2_for_other_event # Pick a different booking
+        booking_to_cancel_by_admin.status = Booking.BookingStatus.PENDING_PAYMENT
+        booking_to_cancel_by_admin.total_price = booking_to_cancel_by_admin.event.ticket_price * booking_to_cancel_by_admin.number_of_tickets
+        booking_to_cancel_by_admin.price_per_ticket_at_booking = booking_to_cancel_by_admin.event.ticket_price
+        booking_to_cancel_by_admin.save()
+
+        admin_associated_payment, _ = Payment.objects.update_or_create(
+            booking=booking_to_cancel_by_admin,
+            defaults={
+                'amount': booking_to_cancel_by_admin.total_price,
+                'currency': booking_to_cancel_by_admin.event.currency_code if hasattr(booking_to_cancel_by_admin.event, 'currency_code') and booking_to_cancel_by_admin.event.currency_code else 'USD',
+                'status': 'pending'
+            }
+        )
+
+        url = reverse('booking-cancel-booking', kwargs={'pk': booking_to_cancel_by_admin.pk})
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.booking_by_customer1_for_eo_event.refresh_from_db()
-        self.assertEqual(self.booking_by_customer1_for_eo_event.status, Booking.BookingStatus.CANCELLED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        booking_to_cancel_by_admin.refresh_from_db()
+        self.assertEqual(booking_to_cancel_by_admin.status, Booking.BookingStatus.CANCELLED)
+
+        admin_associated_payment.refresh_from_db()
+        self.assertEqual(admin_associated_payment.status, 'cancelled')

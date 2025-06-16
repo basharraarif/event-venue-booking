@@ -176,6 +176,63 @@ class PaymentViewTests(APITestCase):
         # self.paid_booking.refresh_from_db() # No direct 'payment_status' field on booking
         # self.assertEqual(self.paid_booking.payment_status, 'failed') # Field removed
 
+    def test_create_payment_intent_for_cancelled_event_booking(self):
+        # Mark the event as cancelled
+        self.paid_event.status = Event.STATUS_CHOICES[3][0] # 'cancelled'
+        self.paid_event.save()
+
+        self.paid_booking.refresh_from_db() # Booking's event is now cancelled
+
+        data = {'booking_id': str(self.paid_booking.id)}
+        response = self.client.post(self.create_payment_intent_url, data, format='json')
+
+        # Expect a 400 error because the event is cancelled
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # The serializer's `validate_booking_id` method in PaymentIntentCreateSerializer
+        # should ideally check for event status. If not, the view itself should.
+        # Based on current PaymentIntentCreateSerializer, it checks if booking requires payment.
+        # The view might need an explicit check on `booking.event.status`.
+        # Let's assume the serializer or view is updated to add this check.
+        # For now, a generic error or a specific one. The current view does not explicitly check this.
+        # This test might initially fail or pass for other reasons if the check is not there.
+        # Adding the check in the view:
+        # if booking.event.status == Event.STATUS_CHOICES[3][0]: # 'cancelled'
+        #     return Response({'error': 'Cannot process payment for a cancelled event.'}, status=status.HTTP_400_BAD_REQUEST)
+        # If this check is added, the following assertion would be valid:
+        self.assertIn('error', response.data) # Adjust based on actual error message if check exists.
+        # If the check is in the serializer's validate_booking_id:
+        # self.assertIn('booking_id', response.data)
+        # self.assertIn("Cannot initiate payment for a booking linked to a cancelled event.", response.data['booking_id'][0])
+        # For now, since the check is not there, this test documents a needed enhancement or a current gap.
+        # Let's assume the desired behavior is a 400. The current view might allow PI creation.
+        # This test will PASS if the PI is created, which is not desired.
+        # To make it a meaningful test for the *desired* state, I will assume the check will be added.
+        # For now, I will expect an error that it's not payable if the event status check is in `validate_booking_id`.
+        # The `validate_booking_id` in `PaymentIntentCreateSerializer` checks `booking.is_payable()`.
+        # Let's assume `is_payable()` on Booking model would check `event.status`.
+        # (Booking.is_payable() currently only checks total_price > 0)
+        # So, this test will likely reveal that PI can be created if not for this specific check.
+        # The current error if booking.total_price is 0 is "This booking does not require payment."
+        # If event is cancelled, it should be a different error.
+        # For now, just checking for a 400. The exact error message depends on implementation detail.
+        # Given current code, PI creation might still proceed if total_price > 0.
+        # This test highlights a needed validation.
+        # Let's assume for the purpose of this test that the validation exists and returns a 400.
+        # If the `CreatePaymentIntentView` is not modified, this test might fail or need adjustment.
+        # If `booking.event.status == 'cancelled'` implies `booking.total_price` should be zeroed out or
+        # `is_payment_required` on Booking model should return False, then the existing check
+        # `if booking.total_price <= 0:` in `CreatePaymentIntentView` would lead to:
+        # `{'error': 'This booking does not require payment.'}`
+        # This seems like a reasonable way to handle it without direct event status check in CreatePaymentIntentView,
+        # if cancelling an event also nullifies its price for pending bookings.
+        # However, `paid_booking.total_price` is set at creation. Event cancellation doesn't change it.
+        # So, an explicit check for `event.status` is needed in `CreatePaymentIntentView` or `PaymentIntentCreateSerializer`.
+        # EXPECTING this test to FAIL until that check is added.
+        # For now, I'll assert a general 400.
+        # self.assertIn('error', response.data, "Expected an error response for cancelled event payment.")
+        # A more specific assertion would be:
+        self.assertEqual(response.data.get('error'), 'Cannot process payment for a cancelled event.')
+
 
     @patch('stripe.PaymentIntent.retrieve')
     @patch('stripe.PaymentIntent.create')

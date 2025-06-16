@@ -14,8 +14,7 @@ from django.db.models import Q, Sum # For complex queries and Sum
 from events.models import Event # Explicit import for Event model
 from rest_framework import serializers # For serializers.ValidationError
 import logging
-from rest_framework.views import APIView
-from django.conf import settings
+from django.conf import settings # Keep if used elsewhere, remove if only for stripe
 # import stripe # Will be needed for actual signature verification
 
 logger = logging.getLogger(__name__)
@@ -171,46 +170,47 @@ class BookingViewSet(viewsets.ModelViewSet):
         # Pass price_per_ticket_at_booking to serializer's save method
         booking = serializer.save(
             user=self.request.user,
-            price_per_ticket_at_booking=price_at_booking
-            # payment_intent_id will be set below based on price
+            price_per_ticket_at_booking=price_at_booking,
+            payment_intent_id=None # Ensure payment_intent_id is explicitly None initially
         )
         # The booking.total_price is now calculated by the model's save() method.
 
+        update_fields = [] # Initialize list of fields to update
+
         if booking.is_payment_required(): # Using the model method
-            # Paid event: Simulate Stripe PaymentIntent creation
-            booking.payment_intent_id = f"pi_test_{booking.id_hex[:12]}" # Simulated ID using part of booking UUID if available, or make one up
             booking.status = Booking.BookingStatus.PENDING_PAYMENT
-            update_fields = ['status', 'payment_intent_id']
+            update_fields.append('status')
 
             # Determine currency for Payment record
             currency = 'USD' # Default currency
             if hasattr(event, 'currency') and event.currency:
                 currency = event.currency
-            elif hasattr(event, 'currency_code') and event.currency_code:
+            elif hasattr(event, 'currency_code') and event.currency_code: # Check for alternative attribute name
                 currency = event.currency_code
 
             Payment.objects.create(
                 booking=booking,
                 amount=booking.total_price,
-                currency=currency, # Use determined currency
+                currency=currency,
                 status='pending', # Initial status for the internal payment record
-                # stripe_payment_intent_id=booking.payment_intent_id # Optional: if you want to store it on Payment model too
+                # stripe_payment_intent_id is NOT set here. It will be set by CreatePaymentIntentView
             )
-            logger.info(f"PaymentIntent '{booking.payment_intent_id}' simulated for booking {booking.id}. Status set to PENDING_PAYMENT.")
+            logger.info(f"Booking {booking.id} requires payment. Status set to PENDING_PAYMENT. Associated Payment record created.")
             email_subject_template = 'emails/booking_pending_subject.txt'
             email_html_template = 'emails/booking_pending_body.html'
             email_text_template = 'emails/booking_pending_body.txt'
         else:
             # Free event: set booking status to CONFIRMED
             booking.status = Booking.BookingStatus.CONFIRMED
-            booking.payment_intent_id = None # Ensure no payment intent ID for free bookings
-            update_fields = ['status', 'payment_intent_id']
+            update_fields.append('status')
+            # booking.payment_intent_id remains None (already set during serializer.save)
             logger.info(f"Free booking {booking.id} confirmed. No PaymentIntent needed.")
             email_subject_template = 'emails/booking_confirmation_subject.txt'
             email_html_template = 'emails/booking_confirmation_body.html'
             email_text_template = 'emails/booking_confirmation_body.txt'
 
-        booking.save(update_fields=update_fields)
+        if update_fields:
+            booking.save(update_fields=update_fields)
 
         # Send appropriate email based on whether payment is required
         logger.info(f"Attempting to send email for booking {booking.id} with subject template {email_subject_template} inside perform_create.")
@@ -330,103 +330,3 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(booking)
         return Response(serializer.data)
-
-
-class StripeWebhookView(APIView):
-    """
-    Handles incoming webhooks from Stripe.
-    """
-    permission_classes = [permissions.AllowAny] # Webhooks should be publicly accessible but secured by signature
-
-    def post(self, request, *args, **kwargs):
-        payload = request.data
-        event_type = payload.get('type')
-
-        # TODO: Implement actual Stripe signature verification here
-        # For now, we simulate success. In production, you MUST verify the signature.
-        # Example:
-        # sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-        # try:
-        #     event = stripe.Webhook.construct_event(
-        #         request.body, sig_header, settings.STRIPE_WEBHOOK_SECRET
-        #     )
-        # except ValueError as e:
-        #     # Invalid payload
-        #     logger.error(f"Webhook error while validating payload: {e}")
-        #     return Response(status=status.HTTP_400_BAD_REQUEST)
-        # except stripe.error.SignatureVerificationError as e:
-        #     # Invalid signature
-        #     logger.error(f"Webhook signature verification failed: {e}")
-        #     return Response(status=status.HTTP_400_BAD_REQUEST)
-        #
-        # event_type = event.type # Use event from stripe.Webhook.construct_event
-
-        logger.info(f"Received Stripe webhook event: {event_type}")
-
-        if event_type == 'payment_intent.succeeded':
-            payment_intent = payload.get('data', {}).get('object', {})
-            payment_intent_id = payment_intent.get('id')
-            if payment_intent_id:
-                try:
-                    booking = Booking.objects.get(payment_intent_id=payment_intent_id)
-                    booking.status = Booking.BookingStatus.CONFIRMED
-                    booking.save(update_fields=['status'])
-                    logger.info(f"Booking {booking.id} confirmed via webhook for PaymentIntent {payment_intent_id}.")
-                    # Optionally, update the associated Payment model status as well
-                    if hasattr(booking, 'payment'):
-                        payment = booking.payment
-                        payment.status = 'successful' # Assuming 'successful' is a status in Payment model
-                        payment.stripe_payment_intent_id = payment_intent_id # Ensure it's stored if not already
-                        payment.save(update_fields=['status', 'stripe_payment_intent_id'])
-                        logger.info(f"Payment record {payment.id} for booking {booking.id} updated to successful.")
-                    # Send confirmation email
-                    send_booking_related_email(
-                        booking=booking,
-                        subject_template_name='emails/booking_confirmation_subject.txt',
-                        body_html_template_name='emails/booking_confirmation_body.html',
-                        body_text_template_name='emails/booking_confirmation_body.txt'
-                    )
-
-                except Booking.DoesNotExist:
-                    logger.warning(f"Booking not found for successful PaymentIntent {payment_intent_id}.")
-                except Exception as e:
-                    logger.error(f"Error processing payment_intent.succeeded for {payment_intent_id}: {e}")
-            else:
-                logger.warning("payment_intent.succeeded event received without a PaymentIntent ID.")
-
-        elif event_type == 'payment_intent.payment_failed':
-            payment_intent = payload.get('data', {}).get('object', {})
-            payment_intent_id = payment_intent.get('id')
-            if payment_intent_id:
-                try:
-                    booking = Booking.objects.get(payment_intent_id=payment_intent_id)
-                    original_status = booking.status
-                    booking.status = Booking.BookingStatus.FAILED # Assuming FAILED status exists
-                    booking.save(update_fields=['status'])
-                    logger.info(f"Booking {booking.id} status updated to FAILED for PaymentIntent {payment_intent_id}.")
-                    # Optionally, update the associated Payment model status
-                    if hasattr(booking, 'payment'):
-                        payment = booking.payment
-                        payment.status = 'failed' # Assuming 'failed' is a status in Payment model
-                        payment.stripe_payment_intent_id = payment_intent_id
-                        payment.save(update_fields=['status', 'stripe_payment_intent_id'])
-                        logger.info(f"Payment record {payment.id} for booking {booking.id} updated to failed.")
-                    # Send booking failed email only if status changed
-                    if original_status != Booking.BookingStatus.FAILED:
-                        send_booking_related_email(
-                            booking=booking,
-                            subject_template_name='emails/booking_failed_subject.txt',
-                            body_html_template_name='emails/booking_failed_body.html',
-                            body_text_template_name='emails/booking_failed_body.txt'
-                        )
-
-                except Booking.DoesNotExist:
-                    logger.warning(f"Booking not found for failed PaymentIntent {payment_intent_id}.")
-                except Exception as e:
-                    logger.error(f"Error processing payment_intent.payment_failed for {payment_intent_id}: {e}")
-            else:
-                logger.warning("payment_intent.payment_failed event received without a PaymentIntent ID.")
-        else:
-            logger.info(f"Unhandled Stripe event type: {event_type}")
-
-        return Response(status=status.HTTP_200_OK)

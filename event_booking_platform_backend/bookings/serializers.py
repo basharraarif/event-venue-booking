@@ -200,39 +200,12 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_payment_status(self, obj):
         if hasattr(obj, 'payment') and obj.payment:
             return obj.payment.status
-        return "not_required" # Or None, depending on desired representation if no payment
-                )
-
-        # Validation for updating number_of_tickets based on payment status
-        if self.instance and 'number_of_tickets' in data and data['number_of_tickets'] != self.instance.number_of_tickets:
-            try:
-                # Ensure related payment instance is loaded.
-                # self.instance.payment might be cached; consider self.instance.payment_set.first() or Payment.objects.get(booking=self.instance)
-                # For OneToOneField, self.instance.payment should be fine if correctly related and fetched.
-                payment = self.instance.payment
-                # Check if payment status is not PENDING (using actual values from Payment model choices)
-                # from payments.models import Payment # Import locally if needed
-                # Assuming Payment model has status choices like ('pending', 'successful', 'failed')
-                if payment.status != 'pending': # Ideally, use Payment.PaymentStatus.PENDING if available
-                    raise serializers.ValidationError({
-                        'number_of_tickets': f"Cannot change number of tickets once payment is {payment.status}."
-                    })
-            except Booking.payment.RelatedObjectDoesNotExist: # Adjusted exception type
-                 # This case implies no payment object is associated, which might be an issue
-                 # or could mean booking is new and payment not yet created.
-                 # However, this validation is for self.instance (updates), so payment should exist.
-                print(f"Warning: Payment object not found for booking {self.instance.id} during number_of_tickets validation.")
-                # Depending on business logic, this could be a pass or an error.
-                # For now, let's assume if no payment, it's okay to change tickets (e.g. admin fixing things).
-                pass
-            except AttributeError: # If self.instance.payment doesn't exist for some reason
-                print(f"Warning: Payment attribute error for booking {self.instance.id}.")
-                pass
+        # Consider returning None or a specific string like 'no_payment_object' if obj.payment is None
+        # For instance, if a booking is free and has no payment object.
+        # The current logic implies "not_required" could mean free or no payment object.
+        return "not_required" # Default if no payment object or payment field is None
 
 
+        # The duplicated 'return data' and the second 'get_payment_status' were removed.
+        # The validation for 'number_of_tickets' based on payment status is kept once.
         return data
-
-    def get_payment_status(self, obj):
-        if hasattr(obj, 'payment') and obj.payment:
-            return obj.payment.status
-        return "not_required" # Or None, depending on desired representation if no payment

@@ -63,6 +63,11 @@ class CreatePaymentIntentView(APIView):
             logger.info(f"Booking {booking_id} by user {user.id} does not require payment (total price: {booking.total_price}).")
             return Response({'error': 'This booking does not require payment.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Check if the event associated with the booking is cancelled
+        if booking.event.status == 'cancelled': # Assuming 'cancelled' is the choice value in Event.STATUS_CHOICES
+            logger.warn(f"User {user.id} attempted to create payment intent for booking {booking_id} linked to a cancelled event '{booking.event.name}'.")
+            return Response({'error': 'Cannot process payment for a cancelled event.'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Get or create a Payment object
         payment, created = Payment.objects.get_or_create(
             booking=booking,
