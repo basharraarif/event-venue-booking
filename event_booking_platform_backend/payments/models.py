@@ -28,3 +28,8 @@ class Payment(models.Model):
         ordering = ['-created_at']
         verbose_name = "Payment"
         verbose_name_plural = "Payments"
+        indexes = [
+            models.Index(fields=['status']),
+            # booking is OneToOneField, implicitly indexed.
+            # stripe_payment_intent_id is unique=True, so already indexed.
+        ]

@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookingViewSet, StripeWebhookView
+from .views import BookingViewSet
+from payments.views import StripeWebhookView # Corrected import
 
 # Create a router and register our viewsets with it.
 router = DefaultRouter()

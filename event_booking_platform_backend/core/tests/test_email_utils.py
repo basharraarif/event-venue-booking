@@ -2,316 +2,332 @@ import unittest
 from unittest.mock import patch, MagicMock
 from django.conf import settings
 from django.test import TestCase, override_settings
+from django.template.loader import render_to_string # Import for actual rendering
 
-from core.email_utils import send_booking_related_email
-from bookings.models import Booking # Requires Booking, Event, User, Venue for setup
+from core.email_utils import (
+    send_booking_related_email,
+    send_booking_cancellation_email,
+    send_booking_confirmation_email,
+    send_payment_failure_email,
+    send_new_user_registration_email
+)
+from bookings.models import Booking
 from events.models import Event, Venue, Category
 from django.contrib.auth import get_user_model
-from payments.models import Payment # For payment currency and transaction ID in context
+from payments.models import Payment
 from decimal import Decimal
 import datetime
 
 User = get_user_model()
 
+# Helper function to create context, similar to what's in email_utils.py
+def get_email_context(booking_instance):
+    payment_currency = 'USD'
+    transaction_id = None
+    if hasattr(booking_instance, 'payment') and booking_instance.payment:
+        payment_currency = booking_instance.payment.currency
+        transaction_id = getattr(booking_instance.payment, 'stripe_payment_intent_id', None)
+
+    return {
+        'user_name': booking_instance.user.username,
+        'booking_id': booking_instance.id,
+        'event_name': booking_instance.event.name,
+        'num_tickets': booking_instance.number_of_tickets,
+        'total_price': booking_instance.total_price,
+        'currency': payment_currency,
+        'event_date': booking_instance.event.start_time,
+        'venue_name': booking_instance.event.venue.name,
+        'transaction_id': transaction_id,
+    }
+
 class EmailUtilsTests(TestCase):
 
     def setUp(self):
-        # Configure minimal settings for email sending, rest will be mocked
-        if not settings.configured:
-            settings.configure(
-                DEFAULT_FROM_EMAIL='noreply@example.com',
-                TEMPLATES=[{
-                    'BACKEND': 'django.template.backends.django.DjangoTemplates',
-                    'DIRS': [settings.BASE_DIR / 'templates'], # Ensure your project's BASE_DIR is correct
-                }]
-            )
-
-        self.user = User.objects.create_user(username='testuser', email='test@example.com', password='password')
-        self.venue_owner = User.objects.create_user(username='venueowner', email='vo@example.com', password='password')
-        self.venue = Venue.objects.create(name='Test Venue', address='123 Test St', capacity=100, owner=self.venue_owner)
+        # No need to configure settings here if project settings are loaded by test runner
+        self.user = User.objects.create_user(username='testuser_email', email='test@example.com', password='password')
+        self.venue_owner = User.objects.create_user(username='venueowner_email', email='vo@example.com', password='password')
+        self.venue = Venue.objects.create(name='Email Test Venue', address='123 Email St', capacity=100, owner=self.venue_owner)
         self.event = Event.objects.create(
-            name='Test Event',
+            name='Email Test Event',
             venue=self.venue,
-            organizer=self.user,
-            ticket_price=Decimal('10.00'),
-            start_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1),
-            end_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2),
+            organizer=self.user, # Or venue_owner if that makes more sense for some tests
+            ticket_price=Decimal('25.00'),
+            currency='EUR', # Test with a different currency
+            start_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=10),
+            end_time=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=10, hours=2),
         )
         self.booking = Booking.objects.create(
             event=self.event,
             user=self.user,
-            number_of_tickets=2,
-            status=Booking.BookingStatus.CONFIRMED # Example status
+            number_of_tickets=2
+            # price_per_ticket_at_booking and total_price are set by model's save()
         )
-        # Simulate a payment object linked to the booking for context
+        # Payment for booking related emails
         self.payment = Payment.objects.create(
             booking=self.booking,
             amount=self.booking.total_price,
-            currency='USD',
-            status='succeeded',
-            stripe_payment_intent_id='pi_test123'
+            currency=self.event.currency, # Use event's currency
+            status=Payment.PaymentStatus.SUCCEEDED, # Default for confirmation
+            stripe_payment_intent_id='pi_email_test_123'
         )
-        # Refresh booking to link payment (if using OneToOneField 'payment' on Booking)
-        self.booking.refresh_from_db()
-
+        self.booking.refresh_from_db() # To link payment if OneToOneField is used
 
     @patch('core.email_utils.EmailMultiAlternatives')
-    @patch('core.email_utils.render_to_string')
-    def test_send_booking_confirmation_email_content_verification(self, mock_render_to_string, mock_email_multi_alternatives):
+    def test_send_booking_confirmation_email_content(self, mock_email_multi_alternatives_constructor):
         mock_msg_instance = MagicMock()
-        mock_email_multi_alternatives.return_value = mock_msg_instance
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
 
-        # Define expected rendered content for mocking
-        # This allows us to verify the structure of the call to EmailMultiAlternatives
-        # without needing the actual template rendering output.
-        mock_render_to_string.side_effect = lambda template_name, context: f"Mocked content for {template_name} with user {context.get('user_name')}"
+        # Call the specific wrapper function
+        send_booking_confirmation_email(self.booking)
 
-        # Use the actual confirmation email templates
-        subject_template = 'emails/booking_confirmation_subject.txt'
-        body_html_template = 'emails/booking_confirmation_body.html'
-        body_text_template = 'emails/booking_confirmation_body.txt'
+        # Verify EmailMultiAlternatives was called (once by the wrapper)
+        mock_email_multi_alternatives_constructor.assert_called_once()
 
-        # Ensure booking has a payment for full context
-        if not hasattr(self.booking, 'payment') or not self.booking.payment:
-            self.payment = Payment.objects.create(
-                booking=self.booking, amount=self.booking.total_price, currency='USD', status='succeeded', stripe_payment_intent_id='pi_confirm_test'
-            )
-            self.booking.refresh_from_db()
+        # Get the arguments passed to EmailMultiAlternatives constructor
+        call_args = mock_email_multi_alternatives_constructor.call_args[0]
+        subject = call_args[0]
+        text_body = call_args[1]
+        from_email_arg = call_args[2]
+        to_email_list = call_args[3]
 
+        # Get the HTML alternative (assuming it's the first one attached)
+        html_body = ""
+        if mock_msg_instance.attach_alternative.called:
+            html_body = mock_msg_instance.attach_alternative.call_args[0][0]
 
-        send_booking_related_email(
-            booking=self.booking, # self.booking is set to CONFIRMED status in setUp
-            subject_template_name=subject_template,
-            body_html_template_name=body_html_template,
-            body_text_template_name=body_text_template
-        )
+        # Assertions for from and to emails
+        self.assertEqual(from_email_arg, settings.DEFAULT_FROM_EMAIL)
+        self.assertEqual(to_email_list, [self.user.email])
 
-        # Verify render_to_string calls with correct context
-        expected_context = {
-            'user_name': self.booking.user.username,
-            'booking_id': self.booking.id,
-            'event_name': self.booking.event.name,
-            'num_tickets': self.booking.number_of_tickets,
-            'total_price': self.booking.total_price,
-            'currency': self.booking.payment.currency,
-            'event_date': self.booking.event.start_time,
-            'venue_name': self.booking.event.venue.name,
-            'transaction_id': self.booking.payment.stripe_payment_intent_id,
-        }
-        mock_render_to_string.assert_any_call(subject_template, expected_context)
-        mock_render_to_string.assert_any_call(body_html_template, expected_context)
-        mock_render_to_string.assert_any_call(body_text_template, expected_context)
+        # Expected context values
+        self.assertIn(f"Booking Confirmation for {self.event.name}", subject) # Example subject check
 
-        # Verify EmailMultiAlternatives call
-        mock_email_multi_alternatives.assert_called_once_with(
-            f"Mocked content for {subject_template} with user {self.user.username}".strip(),
-            f"Mocked content for {body_text_template} with user {self.user.username}",
-            settings.DEFAULT_FROM_EMAIL,
-            [self.user.email]
-        )
-        mock_msg_instance.attach_alternative.assert_called_once_with(
-            f"Mocked content for {body_html_template} with user {self.user.username}", "text/html"
-        )
+        # Text body checks
+        self.assertIn(f"Dear {self.user.username}", text_body)
+        self.assertIn(f"Your booking for {self.event.name} is confirmed.", text_body)
+        self.assertIn(f"Booking ID: {self.booking.id}", text_body)
+        self.assertIn(f"Event: {self.event.name}", text_body)
+        self.assertIn(f"Number of tickets: {self.booking.number_of_tickets}", text_body)
+        self.assertIn(f"Total Price: {self.booking.total_price} {self.payment.currency}", text_body)
+        self.assertIn(f"Venue: {self.venue.name}", text_body)
+        if self.payment.stripe_payment_intent_id:
+            self.assertIn(f"Transaction ID: {self.payment.stripe_payment_intent_id}", text_body)
+
+        # HTML body checks (similar to text, but can also check for HTML tags if needed)
+        self.assertIn(f"<h1>Booking Confirmed!</h1>", html_body) # Example HTML check
+        self.assertIn(f"Hi {self.user.username}", html_body)
+        self.assertIn(f"event_name\">{self.event.name}<", html_body) # Example of checking value within a span/td
+        self.assertIn(f"{self.booking.id}", html_body)
+        self.assertIn(f"{self.booking.number_of_tickets}", html_body)
+        self.assertIn(f"{self.booking.total_price} {self.payment.currency}", html_body)
+
         mock_msg_instance.send.assert_called_once_with(fail_silently=False)
 
     @patch('core.email_utils.EmailMultiAlternatives')
-    def test_send_booking_related_email_no_user_email(self, mock_email_multi_alternatives):
-        original_email = self.user.email # Save original email
-        self.user.email = '' # No email
-        self.user.save()
-        self.booking.refresh_from_db() # Refresh booking as user is linked
-
-        send_booking_related_email(
-            booking=self.booking,
-            subject_template_name='emails/booking_confirmation_subject.txt', # Use actual template names
-            body_html_template_name='emails/booking_confirmation_body.html',
-            body_text_template_name='emails/booking_confirmation_body.txt'
-        )
-        mock_email_multi_alternatives.assert_not_called()
-        self.user.email = original_email # Restore email
-        self.user.save()
-
-    @override_settings(DEFAULT_FROM_EMAIL='customsender@example.com')
-    @patch('core.email_utils.EmailMultiAlternatives')
-    @patch('core.email_utils.render_to_string', return_value="Mocked Content") # Mock render_to_string for simplicity
-    def test_send_email_uses_settings_default_from_email(self, mock_render_to_string, mock_email_multi_alternatives):
-        with override_settings(DEFAULT_FROM_EMAIL='customsender@example.com'): # Use override_settings correctly
-            send_booking_related_email(
-                booking=self.booking,
-                subject_template_name='s.txt', # Generic template names are fine here
-                body_html_template_name='h.html',
-                body_text_template_name='t.txt'
-            )
-            mock_email_multi_alternatives.assert_called_once()
-            # Check the 'from_email' argument in the EmailMultiAlternatives call
-            self.assertEqual(mock_email_multi_alternatives.call_args[0][2], 'customsender@example.com')
-
-
-    @patch('core.email_utils.render_to_string', side_effect=Exception("Template rendering failed"))
-    @patch('core.email_utils.EmailMultiAlternatives')
-    def test_send_email_handles_render_exception(self, mock_email_multi_alternatives, mock_render_to_string):
-        send_booking_related_email(
-            booking=self.booking,
-            subject_template_name='s.txt', # Generic template names
-            body_html_template_name='h.html',
-            body_text_template_name='t.txt'
-        )
-        mock_email_multi_alternatives.assert_not_called()
-
-
-    @patch('core.email_utils.EmailMultiAlternatives')
-    @patch('core.email_utils.strip_tags')
-    @patch('core.email_utils.render_to_string')
-    def test_text_body_fallback_if_text_template_fails(self, mock_render_to_string, mock_strip_tags, mock_email_multi_alternatives):
+    def test_send_booking_pending_email_content(self, mock_email_multi_alternatives_constructor):
         mock_msg_instance = MagicMock()
-        mock_email_multi_alternatives.return_value = mock_msg_instance
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
 
-        subject_content = "Test Subject Fallback"
-        html_content = "<p>HTML Content For Fallback</p>" # Specific HTML content for this test
-        stripped_html_content = "HTML Content For Fallback" # Expected strip_tags output
+        self.booking.status = Booking.BookingStatus.PENDING_PAYMENT
+        self.booking.save()
+        if hasattr(self.booking, 'payment'):
+            self.payment.status = Payment.PaymentStatus.PENDING
+            self.payment.save()
+            self.booking.refresh_from_db()
 
-        def render_side_effect(template_name, context):
-            if template_name == 'emails/subject_for_fallback.txt':
-                return subject_content
-            elif template_name == 'emails/html_body_for_fallback.html':
-                return html_content
-            elif template_name == 'emails/text_body_intended_to_fail.txt':
-                raise Exception("Simulated text template rendering error")
-            return "Should not be called for other templates in this test"
 
-        mock_render_to_string.side_effect = render_side_effect
-        mock_strip_tags.return_value = stripped_html_content
-
+        # Directly use send_booking_related_email as it's called by views for pending status
         send_booking_related_email(
             booking=self.booking,
-            subject_template_name='emails/subject_for_fallback.txt',
-            body_html_template_name='emails/html_body_for_fallback.html',
-            body_text_template_name='emails/text_body_intended_to_fail.txt'
+            subject_template_name='emails/booking_pending_subject.txt',
+            body_html_template_name='emails/booking_pending_body.html',
+            body_text_template_name='emails/booking_pending_body.txt'
         )
 
-        mock_render_to_string.assert_any_call('emails/subject_for_fallback.txt', unittest.mock.ANY)
-        mock_render_to_string.assert_any_call('emails/html_body_for_fallback.html', unittest.mock.ANY)
-        mock_render_to_string.assert_any_call('emails/text_body_intended_to_fail.txt', unittest.mock.ANY)
-        mock_strip_tags.assert_called_once_with(html_content)
+        mock_email_multi_alternatives_constructor.assert_called_once()
+        call_args = mock_email_multi_alternatives_constructor.call_args[0]
+        subject, text_body, _, to_list = call_args[:4]
+        html_body = mock_msg_instance.attach_alternative.call_args[0][0] if mock_msg_instance.attach_alternative.called else ""
 
-        mock_email_multi_alternatives.assert_called_once_with(
-            subject_content.strip(),
-            stripped_html_content,
-            settings.DEFAULT_FROM_EMAIL,
-            [self.user.email]
-        )
-        mock_msg_instance.attach_alternative.assert_called_once_with(html_content, "text/html")
+        self.assertEqual(to_list, [self.user.email])
+        self.assertIn("Your Booking is Pending Payment", subject)
+        self.assertIn(f"Dear {self.user.username}", text_body)
+        self.assertIn(f"Your booking for {self.event.name} is currently pending payment.", text_body)
+        self.assertIn(f"Booking ID: {self.booking.id}", text_body)
+        self.assertIn(f"Please complete your payment to confirm your spot.", text_body)
+        self.assertIn(f"Total Amount Due: {self.booking.total_price} {self.payment.currency}", text_body)
+
+        self.assertIn("Booking Pending Payment", html_body)
+        self.assertIn(f"complete your payment for booking ID {self.booking.id}", html_body)
         mock_msg_instance.send.assert_called_once()
 
 
-    @patch('core.email_utils.send_booking_related_email') # Mock the generic function
-    def test_send_booking_cancellation_email_wrapper(self, mock_send_booking_related_email):
-        from core.email_utils import send_booking_cancellation_email # Import here
-        send_booking_cancellation_email(self.booking)
-        mock_send_booking_related_email.assert_called_once_with(
-            booking=self.booking,
-            subject_template_name='emails/booking_cancellation_subject.txt',
-            body_html_template_name='emails/booking_cancellation_body.html',
-            body_text_template_name='emails/booking_cancellation_body.txt'
-        )
-
-    @patch('core.email_utils.send_booking_related_email')
-    def test_send_booking_confirmation_email_wrapper(self, mock_send_booking_related_email):
-        from core.email_utils import send_booking_confirmation_email # Import the specific wrapper
-        # self.booking is already CONFIRMED in setUp
-        send_booking_confirmation_email(self.booking)
-        mock_send_booking_related_email.assert_called_once_with(
-            booking=self.booking,
-            subject_template_name='emails/booking_confirmation_subject.txt',
-            body_html_template_name='emails/booking_confirmation_body.html',
-            body_text_template_name='emails/booking_confirmation_body.txt'
-        )
-
-    @patch('core.email_utils.send_booking_related_email')
-    def test_send_booking_pending_email_wrapper(self, mock_send_booking_related_email):
-        # This test effectively checks if the main function would be called with these template names.
-        # It doesn't use a specific wrapper "send_booking_pending_email" as it doesn't exist.
-        temp_booking = Booking.objects.create(
-            event=self.event, user=self.user, number_of_tickets=1, status=Booking.BookingStatus.PENDING_PAYMENT
-        )
-        send_booking_related_email( # Direct call, as done in views
-            booking=temp_booking,
-            subject_template_name='emails/booking_pending_subject.txt',
-            body_html_template_name='emails/booking_pending_body.html',
-            body_text_template_name='emails/booking_pending_body.txt'
-        )
-        mock_send_booking_related_email.assert_called_once_with(
-            booking=temp_booking,
-            subject_template_name='emails/booking_pending_subject.txt',
-            body_html_template_name='emails/booking_pending_body.html',
-            body_text_template_name='emails/booking_pending_body.txt'
-        )
-
-
-    @patch('core.email_utils.send_booking_related_email') # Mock the generic function
-    def test_send_payment_failure_email_wrapper(self, mock_send_booking_related_email):
-        from core.email_utils import send_payment_failure_email # Import here
-        send_payment_failure_email(self.booking)
-        mock_send_booking_related_email.assert_called_once_with(
-            booking=self.booking,
-            subject_template_name='emails/payment_failed_subject.txt',
-            body_html_template_name='emails/payment_failed_body.html',
-            body_text_template_name='emails/payment_failed_body.txt'
-        )
-
     @patch('core.email_utils.EmailMultiAlternatives')
-    def test_send_new_user_registration_email_successful(self, mock_email_multi_alternatives):
-        from core.email_utils import send_new_user_registration_email # Import here
-
+    def test_send_payment_failure_email_content(self, mock_email_multi_alternatives_constructor):
         mock_msg_instance = MagicMock()
-        mock_email_multi_alternatives.return_value = mock_msg_instance
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
 
-        # These templates were created in a previous step.
-        # For this test, we assume render_to_string will work with them.
-        # If more detailed checking of rendered content is needed, templates should be simpler or render_to_string mocked.
+        self.booking.status = Booking.BookingStatus.PENDING_PAYMENT # Or FAILED if that's the flow
+        self.booking.save()
+        if hasattr(self.booking, 'payment'):
+            self.payment.status = Payment.PaymentStatus.FAILED
+            self.payment.save()
+            self.booking.refresh_from_db()
 
-        with patch('core.email_utils.render_to_string') as mock_render:
-            # Define what render_to_string should return for each template
-            def side_effect_render(template_name, context):
-                if template_name == 'emails/new_user_registration_subject.txt':
-                    return f"Welcome to Our Platform, {context['user_name']}!"
-                elif template_name == 'emails/new_user_registration_body.html':
-                    return f"<h1>Welcome, {context['user_name']}!</h1><p>Email: {context['user_email']}</p>"
-                elif template_name == 'emails/new_user_registration_body.txt':
-                    return f"Hi {context['user_name']},\nEmail: {context['user_email']}"
-                return "" # Default empty for any other unexpected template
+        send_payment_failure_email(self.booking)
 
-            mock_render.side_effect = side_effect_render
+        mock_email_multi_alternatives_constructor.assert_called_once()
+        call_args = mock_email_multi_alternatives_constructor.call_args[0]
+        subject, text_body, _, to_list = call_args[:4]
+        html_body = mock_msg_instance.attach_alternative.call_args[0][0] if mock_msg_instance.attach_alternative.called else ""
 
-            send_new_user_registration_email(self.user)
+        self.assertEqual(to_list, [self.user.email])
+        self.assertIn("Payment Failed for Your Booking", subject)
+        self.assertIn(f"Dear {self.user.username}", text_body)
+        self.assertIn(f"We regret to inform you that the payment for your booking (ID: {self.booking.id}) for the event {self.event.name} has failed.", text_body)
+        self.assertIn(f"Event: {self.event.name}", text_body)
+        self.assertIn(f"Amount: {self.booking.total_price} {self.payment.currency}", text_body)
+        self.assertIn("Please try updating your payment method or contact support.", text_body)
 
-            expected_subject = f"Welcome to Our Platform, {self.user.username}!"
-            expected_html_body = f"<h1>Welcome, {self.user.username}!</h1><p>Email: {self.user.email}</p>"
-            expected_text_body = f"Hi {self.user.username},\nEmail: {self.user.email}"
-
-            mock_email_multi_alternatives.assert_called_once_with(
-                expected_subject,
-                expected_text_body,
-                settings.DEFAULT_FROM_EMAIL,
-                [self.user.email]
-            )
-            mock_msg_instance.attach_alternative.assert_called_once_with(expected_html_body, "text/html")
-            mock_msg_instance.send.assert_called_once_with(fail_silently=False)
-
-            # Verify render_to_string calls
-            mock_render.assert_any_call('emails/new_user_registration_subject.txt', unittest.mock.ANY)
-            mock_render.assert_any_call('emails/new_user_registration_body.html', unittest.mock.ANY)
-            mock_render.assert_any_call('emails/new_user_registration_body.txt', unittest.mock.ANY)
+        self.assertIn("Payment Failed", html_body)
+        self.assertIn(f"booking ID: {self.booking.id}", html_body)
+        mock_msg_instance.send.assert_called_once()
 
     @patch('core.email_utils.EmailMultiAlternatives')
-    def test_send_new_user_registration_email_no_user_email(self, mock_email_multi_alternatives):
-        from core.email_utils import send_new_user_registration_email # Import here
+    def test_send_booking_cancellation_email_content(self, mock_email_multi_alternatives_constructor):
+        mock_msg_instance = MagicMock()
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
+
+        self.booking.status = Booking.BookingStatus.CANCELLED
+        self.booking.save()
+
+        send_booking_cancellation_email(self.booking)
+
+        mock_email_multi_alternatives_constructor.assert_called_once()
+        call_args = mock_email_multi_alternatives_constructor.call_args[0]
+        subject, text_body, _, to_list = call_args[:4]
+        html_body = mock_msg_instance.attach_alternative.call_args[0][0] if mock_msg_instance.attach_alternative.called else ""
+
+        self.assertEqual(to_list, [self.user.email])
+        self.assertIn("Your Booking Has Been Cancelled", subject)
+        self.assertIn(f"Dear {self.user.username}", text_body)
+        self.assertIn(f"your booking (ID: {self.booking.id}) for the event {self.event.name} has been cancelled.", text_body)
+        self.assertIn(f"Event: {self.event.name}", text_body)
+
+        self.assertIn("Booking Cancelled", html_body)
+        self.assertIn(f"ID: {self.booking.id}", html_body)
+        mock_msg_instance.send.assert_called_once()
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_send_new_user_registration_email_content(self, mock_email_multi_alternatives_constructor):
+        mock_msg_instance = MagicMock()
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
+
+        new_user = User.objects.create_user(username='newlyreg', email='newlyreg@example.com', password='password')
+        send_new_user_registration_email(new_user)
+
+        mock_email_multi_alternatives_constructor.assert_called_once()
+        call_args = mock_email_multi_alternatives_constructor.call_args[0]
+        subject, text_body, from_email_arg, to_list = call_args[:4]
+        html_body = mock_msg_instance.attach_alternative.call_args[0][0] if mock_msg_instance.attach_alternative.called else ""
+
+        self.assertEqual(from_email_arg, settings.DEFAULT_FROM_EMAIL)
+        self.assertEqual(to_list, [new_user.email])
+
+        self.assertIn(f"Welcome to Our Platform, {new_user.username}!", subject)
+
+        self.assertIn(f"Hi {new_user.username},", text_body)
+        self.assertIn("Welcome to EventFlow!", text_body) # Assuming 'EventFlow' is the platform name from template
+        self.assertIn("We're excited to have you.", text_body)
+        self.assertIn(f"Your email: {new_user.email}", text_body)
+
+        self.assertIn(f"<h1>Welcome, {new_user.username}!</h1>", html_body)
+        self.assertIn("platform_name\">EventFlow<", html_body) # Example of checking value within a span/td
+        self.assertIn(f"{new_user.email}", html_body)
+
+        mock_msg_instance.send.assert_called_once_with(fail_silently=False)
+
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_send_booking_related_email_no_user_email(self, mock_email_multi_alternatives):
+        # Test that email is not sent if user has no email address
         original_email = self.user.email
         self.user.email = ''
         self.user.save()
+        self.booking.refresh_from_db()
 
-        send_new_user_registration_email(self.user)
+        send_booking_confirmation_email(self.booking) # Try sending any booking email
         mock_email_multi_alternatives.assert_not_called()
 
-        self.user.email = original_email # Reset email for other tests
+        self.user.email = original_email # Restore email
         self.user.save()
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_send_new_user_registration_email_no_user_email(self, mock_email_multi_alternatives):
+        # Test that email is not sent if user has no email address
+        no_email_user = User.objects.create_user(username='no_email_user', email='', password='password')
+
+        send_new_user_registration_email(no_email_user)
+        mock_email_multi_alternatives.assert_not_called()
+
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    @patch('core.email_utils.render_to_string', side_effect=Exception("Template rendering failed globally"))
+    def test_send_email_handles_global_render_exception(self, mock_render_to_string_global_fail, mock_email_multi_alternatives):
+        # Test handling of generic render_to_string exception
+        send_booking_confirmation_email(self.booking) # Any email type
+        mock_email_multi_alternatives.assert_not_called() # Should not attempt to send if rendering fails
+
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_text_body_fallback_if_text_template_fails_in_send_booking_related_email(self, mock_email_multi_alternatives_constructor):
+        # This test focuses on the fallback logic within send_booking_related_email
+        mock_msg_instance = MagicMock()
+        mock_email_multi_alternatives_constructor.return_value = mock_msg_instance
+
+        # Actual subject and HTML content will be rendered by templates.
+        # We need to make the text template rendering fail.
+
+        # Use a new booking or modify existing for this specific test to avoid side effects
+        test_fallback_booking = Booking.objects.create(
+            event=self.event, user=self.user, number_of_tickets=1
+        )
+        if not hasattr(test_fallback_booking, 'payment') or not test_fallback_booking.payment:
+             Payment.objects.create(
+                booking=test_fallback_booking, amount=test_fallback_booking.total_price,
+                currency=test_fallback_booking.event.currency, status='succeeded'
+            )
+        test_fallback_booking.refresh_from_db()
+
+
+        # We need to mock render_to_string carefully for this specific test
+        original_render_to_string = render_to_string
+
+        def selective_render_side_effect(template_name, context):
+            if template_name == 'emails/problematic_text_template.txt': # This is the one we want to fail
+                raise Exception("Simulated text template rendering error")
+            # For other templates, use the actual render_to_string
+            return original_render_to_string(template_name, context)
+
+        with patch('core.email_utils.render_to_string', side_effect=selective_render_side_effect) as mock_render_selective:
+            send_booking_related_email(
+                booking=test_fallback_booking,
+                subject_template_name='emails/booking_confirmation_subject.txt', # A real subject template
+                body_html_template_name='emails/booking_confirmation_body.html',   # A real HTML template
+                body_text_template_name='emails/problematic_text_template.txt' # The failing one
+            )
+
+            mock_email_multi_alternatives_constructor.assert_called_once()
+            call_args = mock_email_multi_alternatives_constructor.call_args[0]
+            text_body_used_for_email = call_args[1] # This is the text body that EmailMultiAlternatives received
+
+            # Expected: text_body_used_for_email should be the strip_tags version of the HTML content
+            # We need to render the HTML content separately to compare
+            expected_html_content = original_render_to_string('emails/booking_confirmation_body.html', get_email_context(test_fallback_booking))
+            from django.utils.html import strip_tags
+            expected_stripped_text = strip_tags(expected_html_content)
+
+            self.assertEqual(text_body_used_for_email, expected_stripped_text)
+            mock_msg_instance.attach_alternative.assert_called_once_with(expected_html_content, "text/html")
+            mock_msg_instance.send.assert_called_once()
+```
