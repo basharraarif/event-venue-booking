@@ -10,7 +10,7 @@ class Booking(models.Model):
         CANCELLED = 'cancelled', 'Cancelled'
         PENDING = 'pending', 'Pending'
         PENDING_PAYMENT = 'pending_payment', 'Pending Payment'
-        # Add other statuses as needed, e.g. PAYMENT_FAILED
+        FAILED = 'failed', 'Failed' # Added for payment failures
 
     event = models.ForeignKey('events.Event', related_name='bookings', on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='bookings', on_delete=models.CASCADE)
