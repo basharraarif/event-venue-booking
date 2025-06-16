@@ -139,6 +139,7 @@ const PaymentStatusPage = () => {
         </Link>
       </div>
     </div>
+  );
 };
 
 // Wrap with Elements provider because useStripe() is used within PaymentStatusPage
@@ -149,6 +150,7 @@ const PaymentStatusPageWrapper = () => {
     <Elements stripe={stripePromise}>
       <PaymentStatusPage />
     </Elements>
+  );
 };
 
 export default PaymentStatusPageWrapper;

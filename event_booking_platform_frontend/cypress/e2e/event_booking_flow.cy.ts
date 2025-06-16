@@ -274,5 +274,3 @@ describe('Event Booking and Payment Flow E2E Test', () => {
         cy.contains('h1', /my bookings/i).should('be.visible');
     });
 });
-
-[end of event_booking_platform_frontend/cypress/e2e/event_booking_flow.cy.ts]

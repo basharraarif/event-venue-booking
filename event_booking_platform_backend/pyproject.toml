@@ -33,6 +33,7 @@ pytest-cov = "==6.1.1"
 Faker = "==12.0.1"
 mixer = "==7.2.2"
 flake8 = "^6.0" # Added flake8
+black = "^24.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -41,3 +42,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "event_booking_platform_backend.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[tool.black]
+line-length = 119
+target-version = ['py310']

@@ -301,5 +301,3 @@ class TestCrossAppPermissions:
         # VM cannot delete Admin's venue
         response = api_client.delete(other_venue_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
-
-```
