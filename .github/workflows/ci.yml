@@ -23,13 +23,20 @@ jobs:
         with:
           python-version: '3.10' # Specify Python version
 
-      - name: Install backend dependencies
-        run: pip install -r event_booking_platform_backend/requirements.txt
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install backend dependencies with Poetry (for linting)
+        run: cd event_booking_platform_backend && poetry install --no-root --no-interaction --no-ansi
 
       - name: Run Flake8
         run: |
-          pip install flake8 # Ensure flake8 is installed
-          flake8 event_booking_platform_backend/
+          # Assuming flake8 is installed via poetry dev dependencies or globally
+          # If not, add `pip install flake8` or `poetry run pip install flake8`
+          # For now, assuming poetry environment provides it or it's installed separately.
+          # Best practice would be to add flake8 to pyproject.toml dev dependencies
+          # and run via `poetry run flake8 ...`
+          cd event_booking_platform_backend && poetry run flake8 .
 
       - name: Set up Node.js
         uses: actions/setup-node@v4 # Updated to v4
@@ -37,10 +44,13 @@ jobs:
           node-version: '20' # Specify Node.js version
 
       - name: Install frontend dependencies
-        run: cd event_booking_platform_frontend && npm install
+        run: cd event_booking_platform_frontend && npm ci # Changed to npm ci
 
       - name: Run ESLint
         run: cd event_booking_platform_frontend && npm run lint:ci # Use lint:ci for quieter output
+
+      - name: Check for NPM vulnerabilities
+        run: cd event_booking_platform_frontend && npm audit --audit-level=high
 
   test-backend:
     name: Test Backend
@@ -55,8 +65,11 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install backend dependencies
-        run: pip install -r event_booking_platform_backend/requirements.txt
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install backend dependencies with Poetry (including dev for tests)
+        run: cd event_booking_platform_backend && poetry install --no-interaction --no-ansi
 
       - name: Create backend .env file
         run: |
@@ -70,7 +83,7 @@ jobs:
       - name: Run backend tests
         run: |
           cd event_booking_platform_backend
-          pytest -W ignore::DeprecationWarning --cov=./ --cov-report=xml # Generate coverage report
+          poetry run pytest -W ignore::DeprecationWarning --cov=./ --cov-report=xml # Generate coverage report
 
   test-frontend:
     name: Test Frontend
@@ -87,7 +100,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./event_booking_platform_frontend # Use working-directory for cleaner cd
-        run: npm install
+        run: npm ci # Changed to npm ci
 
       - name: Create frontend .env file
         working-directory: ./event_booking_platform_frontend

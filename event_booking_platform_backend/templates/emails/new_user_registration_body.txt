@@ -1,0 +1,11 @@
+Hi {{ user_name }},
+
+Thank you for registering on Our Platform! We are excited to have you.
+
+Your username is: {{ user_name }}
+Your registered email is: {{ user_email }}
+
+If you have any questions, feel free to contact our support team.
+
+Best regards,
+The Platform Team

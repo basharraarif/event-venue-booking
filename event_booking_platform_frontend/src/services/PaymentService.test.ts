@@ -87,4 +87,74 @@ describe('PaymentService', () => {
       expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/bookings/${bookingId}/`);
     });
   });
+
+  describe('confirmCardPayment', () => {
+    const mockStripe = {
+      confirmCardPayment: jest.fn(),
+    };
+    const mockCardElement = {}; // Dummy object for card element
+    const clientSecret = 'cs_test_secret';
+    const billingDetails = { name: 'Test User', email: 'test@example.com' };
+
+    beforeEach(() => {
+      mockStripe.confirmCardPayment.mockClear();
+    });
+
+    it('should call stripe.confirmCardPayment with correct parameters and resolve on success', async () => {
+      const mockPaymentIntent = { id: 'pi_test', status: 'succeeded' };
+      mockStripe.confirmCardPayment.mockResolvedValueOnce({ paymentIntent: mockPaymentIntent });
+
+      const result = await PaymentService.confirmCardPayment(
+        mockStripe,
+        clientSecret,
+        mockCardElement,
+        billingDetails
+      );
+
+      expect(mockStripe.confirmCardPayment).toHaveBeenCalledWith(clientSecret, {
+        payment_method: {
+          card: mockCardElement,
+          billing_details: billingDetails,
+        },
+      });
+      expect(result).toEqual({ paymentIntent: mockPaymentIntent });
+    });
+
+    it('should reject with an error if stripe.confirmCardPayment returns an error', async () => {
+      const mockError = { message: 'Stripe card confirmation failed' };
+      mockStripe.confirmCardPayment.mockResolvedValueOnce({ error: mockError }); // Stripe API returns error in a resolved promise with an error key
+
+      await expect(
+        PaymentService.confirmCardPayment(mockStripe, clientSecret, mockCardElement, billingDetails)
+      ).rejects.toEqual(mockError);
+
+      expect(mockStripe.confirmCardPayment).toHaveBeenCalledWith(clientSecret, {
+        payment_method: {
+          card: mockCardElement,
+          billing_details: billingDetails,
+        },
+      });
+    });
+
+    it('should reject if stripe instance is not provided', async () => {
+      await expect(
+        PaymentService.confirmCardPayment(null, clientSecret, mockCardElement, billingDetails)
+      ).rejects.toEqual('Stripe.js or CardElement not initialized.');
+    });
+
+    it('should reject if cardElement is not provided', async () => {
+      await expect(
+        PaymentService.confirmCardPayment(mockStripe, clientSecret, null, billingDetails)
+      ).rejects.toEqual('Stripe.js or CardElement not initialized.');
+    });
+
+    it('should reject with an error if stripe.confirmCardPayment throws an exception', async () => {
+      const mockException = new Error('Unexpected Stripe error');
+      mockStripe.confirmCardPayment.mockRejectedValueOnce(mockException);
+
+      await expect(
+        PaymentService.confirmCardPayment(mockStripe, clientSecret, mockCardElement, billingDetails)
+      ).rejects.toEqual(mockException);
+    });
+  });
 });

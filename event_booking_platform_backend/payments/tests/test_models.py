@@ -1,9 +1,11 @@
 from decimal import Decimal
+from decimal import Decimal # Make sure Decimal is imported
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError # Import IntegrityError
-from events.models import Event, Category, Venue
+from django.db import IntegrityError
+from events.models import Event, Category # Venue removed from here
 from bookings.models import Booking
+from venues.models import Venue # Venue imported from here
 from payments.models import Payment
 import uuid
 

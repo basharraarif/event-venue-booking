@@ -10,7 +10,8 @@ from django.conf import settings # To access STRIPE_WEBHOOK_SECRET for test sign
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
-from events.models import Event, Category, Venue
+from events.models import Event, Category # Venue removed
+from venues.models import Venue # Venue added
 from bookings.models import Booking
 from payments.models import Payment
 

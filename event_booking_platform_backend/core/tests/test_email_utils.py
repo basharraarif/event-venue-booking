@@ -216,3 +216,83 @@ class EmailUtilsTests(TestCase):
 # templates/emails/test_subject.txt -> Subject: {{ event_name }}
 # templates/emails/test_body.html -> <p>Hello {{ user_name }}, event {{ event_name }}</p>
 # templates/emails/test_body.txt -> Hello {{ user_name }}, event {{ event_name }}
+
+
+    @patch('core.email_utils.send_booking_related_email') # Mock the generic function
+    def test_send_booking_cancellation_email_wrapper(self, mock_send_booking_related_email):
+        from core.email_utils import send_booking_cancellation_email # Import here to use the mock correctly
+        send_booking_cancellation_email(self.booking)
+        mock_send_booking_related_email.assert_called_once_with(
+            booking=self.booking,
+            subject_template_name='emails/booking_cancellation_subject.txt',
+            body_html_template_name='emails/booking_cancellation_body.html',
+            body_text_template_name='emails/booking_cancellation_body.txt'
+        )
+
+    @patch('core.email_utils.send_booking_related_email') # Mock the generic function
+    def test_send_payment_failure_email_wrapper(self, mock_send_booking_related_email):
+        from core.email_utils import send_payment_failure_email # Import here
+        send_payment_failure_email(self.booking)
+        mock_send_booking_related_email.assert_called_once_with(
+            booking=self.booking,
+            subject_template_name='emails/payment_failed_subject.txt',
+            body_html_template_name='emails/payment_failed_body.html',
+            body_text_template_name='emails/payment_failed_body.txt'
+        )
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_send_new_user_registration_email_successful(self, mock_email_multi_alternatives):
+        from core.email_utils import send_new_user_registration_email # Import here
+
+        mock_msg_instance = MagicMock()
+        mock_email_multi_alternatives.return_value = mock_msg_instance
+
+        # These templates were created in a previous step.
+        # For this test, we assume render_to_string will work with them.
+        # If more detailed checking of rendered content is needed, templates should be simpler or render_to_string mocked.
+
+        with patch('core.email_utils.render_to_string') as mock_render:
+            # Define what render_to_string should return for each template
+            def side_effect_render(template_name, context):
+                if template_name == 'emails/new_user_registration_subject.txt':
+                    return f"Welcome to Our Platform, {context['user_name']}!"
+                elif template_name == 'emails/new_user_registration_body.html':
+                    return f"<h1>Welcome, {context['user_name']}!</h1><p>Email: {context['user_email']}</p>"
+                elif template_name == 'emails/new_user_registration_body.txt':
+                    return f"Hi {context['user_name']},\nEmail: {context['user_email']}"
+                return "" # Default empty for any other unexpected template
+
+            mock_render.side_effect = side_effect_render
+
+            send_new_user_registration_email(self.user)
+
+            expected_subject = f"Welcome to Our Platform, {self.user.username}!"
+            expected_html_body = f"<h1>Welcome, {self.user.username}!</h1><p>Email: {self.user.email}</p>"
+            expected_text_body = f"Hi {self.user.username},\nEmail: {self.user.email}"
+
+            mock_email_multi_alternatives.assert_called_once_with(
+                expected_subject,
+                expected_text_body,
+                settings.DEFAULT_FROM_EMAIL,
+                [self.user.email]
+            )
+            mock_msg_instance.attach_alternative.assert_called_once_with(expected_html_body, "text/html")
+            mock_msg_instance.send.assert_called_once_with(fail_silently=False)
+
+            # Verify render_to_string calls
+            mock_render.assert_any_call('emails/new_user_registration_subject.txt', unittest.mock.ANY)
+            mock_render.assert_any_call('emails/new_user_registration_body.html', unittest.mock.ANY)
+            mock_render.assert_any_call('emails/new_user_registration_body.txt', unittest.mock.ANY)
+
+    @patch('core.email_utils.EmailMultiAlternatives')
+    def test_send_new_user_registration_email_no_user_email(self, mock_email_multi_alternatives):
+        from core.email_utils import send_new_user_registration_email # Import here
+        original_email = self.user.email
+        self.user.email = ''
+        self.user.save()
+
+        send_new_user_registration_email(self.user)
+        mock_email_multi_alternatives.assert_not_called()
+
+        self.user.email = original_email # Reset email for other tests
+        self.user.save()

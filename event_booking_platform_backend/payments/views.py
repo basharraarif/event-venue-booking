@@ -277,9 +277,9 @@ class StripeWebhookView(APIView):
             try:
                 send_booking_related_email(
                     booking=booking,
-                    subject_template_name='emails/payment_confirmation_subject.txt',
-                    body_html_template_name='emails/payment_confirmation_body.html',
-                    body_text_template_name='emails/payment_confirmation_body.txt',
+                    subject_template_name='emails/booking_confirmation_subject.txt', # Corrected template name
+                    body_html_template_name='emails/booking_confirmation_body.html', # Corrected template name
+                    body_text_template_name='emails/booking_confirmation_body.txt',   # Corrected template name
                     payment=payment # Pass the updated/created payment object
                 )
                 logger.info(f"Payment confirmation email sent for booking {booking.id}.")
