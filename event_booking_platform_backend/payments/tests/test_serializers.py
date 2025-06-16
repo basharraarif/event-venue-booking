@@ -7,7 +7,8 @@ import uuid
 from payments.models import Payment
 from payments.serializers import PaymentSerializer, PaymentIntentCreateSerializer, PaymentIntentResponseSerializer
 from bookings.models import Booking
-from events.models import Event, Venue
+from events.models import Event # Venue removed from here
+from venues.models import Venue # Venue imported from here
 from django.utils import timezone
 
 User = get_user_model()

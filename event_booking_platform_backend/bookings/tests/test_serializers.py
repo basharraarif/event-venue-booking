@@ -40,9 +40,19 @@ class BookingSerializerTests(TestCase):
         data = {'event': self.event.pk, 'number_of_tickets': 5}
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertTrue(serializer.is_valid(), serializer.errors)
-        booking = serializer.save(user=self.booker_user) # Pass user to save method
+        # In actual flow, viewset's perform_create passes price_per_ticket_at_booking to save.
+        # Here, we simulate that or let the model's save() handle it.
+        # Let's assume model's save will snapshot it from self.event.ticket_price as price_per_ticket_at_booking is not in `data`.
+        booking = serializer.save(user=self.booker_user)
+
         self.assertEqual(booking.number_of_tickets, 5)
         self.assertEqual(Booking.objects.count(), 1)
+        # Assert that price_per_ticket_at_booking was snapshotted from event's current price
+        self.assertEqual(booking.price_per_ticket_at_booking, self.event.ticket_price) # self.event.ticket_price is 20.00
+        # Assert total_price is calculated based on the snapshot
+        expected_total_price = self.event.ticket_price * 5
+        self.assertEqual(booking.total_price, expected_total_price)
+
 
     def test_booking_successful_within_event_max_capacity(self):
         self.event.max_capacity = 10 # Event specific capacity, less than venue's 100
@@ -74,8 +84,8 @@ class BookingSerializerTests(TestCase):
         data = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertFalse(serializer.is_valid())
-        self.assertIn('event', serializer.errors) # Error should be on 'event' or non_field_errors
-        self.assertIn("This event is not available for booking (capacity: 0).", serializer.errors['event'][0])
+        self.assertIn('number_of_tickets', serializer.errors)
+        self.assertIn("This event is not available for booking as it has zero capacity.", serializer.errors['number_of_tickets'][0])
 
     def test_fail_booking_exceeds_event_max_capacity(self):
         self.event.max_capacity = 5
@@ -85,7 +95,7 @@ class BookingSerializerTests(TestCase):
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertFalse(serializer.is_valid())
         self.assertIn('number_of_tickets', serializer.errors)
-        self.assertIn("Booking exceeds event capacity. Only 5 tickets remaining.", serializer.errors['number_of_tickets'][0])
+        self.assertIn("Only 5 ticket(s) currently available", str(serializer.errors['number_of_tickets'][0])) # Adjusted wording
 
     def test_fail_booking_exceeds_venue_capacity_when_event_max_capacity_none(self):
         self.venue.capacity = 3
@@ -97,7 +107,7 @@ class BookingSerializerTests(TestCase):
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertFalse(serializer.is_valid())
         self.assertIn('number_of_tickets', serializer.errors)
-        self.assertIn("Booking exceeds event capacity. Only 3 tickets remaining.", serializer.errors['number_of_tickets'][0])
+        self.assertIn("Only 3 ticket(s) currently available", str(serializer.errors['number_of_tickets'][0])) # Adjusted wording
 
     def test_concurrent_booking_fill_capacity(self):
         self.event.max_capacity = 2
@@ -132,7 +142,7 @@ class BookingSerializerTests(TestCase):
         serializer3 = BookingSerializer(data=data3, context=self.serializer_context)
         self.assertFalse(serializer3.is_valid())
         self.assertIn('number_of_tickets', serializer3.errors)
-        self.assertIn("Booking exceeds event capacity. Only 0 tickets remaining.", serializer3.errors['number_of_tickets'][0])
+        self.assertIn("Only 0 ticket(s) currently available", str(serializer3.errors['number_of_tickets'][0])) # Adjusted wording
 
     def test_pending_or_cancelled_bookings_do_not_affect_capacity(self):
         self.event.max_capacity = 5
@@ -144,33 +154,35 @@ class BookingSerializerTests(TestCase):
 
         Booking.objects.create(event=self.event, user=user_pending, number_of_tickets=2, status=Booking.BookingStatus.PENDING_PAYMENT)
         Booking.objects.create(event=self.event, user=user_cancelled, number_of_tickets=2, status=Booking.BookingStatus.CANCELLED)
-        Booking.objects.create(event=self.event, user=user_confirmed, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED)
+        Booking.objects.create(event=self.event, user=user_confirmed, number_of_tickets=1, status=Booking.BookingStatus.CONFIRMED) # Consumes 1
 
-        # Serializer's validate method now sums only CONFIRMED bookings.
-        # current_confirmed_tickets = 1. effective_capacity = 5. available = 4.
+        # With the updated serializer logic, PENDING_PAYMENT and CONFIRMED bookings count towards capacity.
+        # Active tickets = 2 (pending_payment from user_pending) + 1 (confirmed from user_confirmed) = 3.
+        # Event max_capacity = 5. Available capacity = 5 - 3 = 2.
 
-        # Try to book 4 tickets. Should succeed.
-        data = {'event': self.event.pk, 'number_of_tickets': 4}
+        # Try to book 2 tickets. Should succeed.
+        data = {'event': self.event.pk, 'number_of_tickets': 2}
         serializer = BookingSerializer(data=data, context=self.serializer_context)
         self.assertTrue(serializer.is_valid(), serializer.errors)
-        booking = serializer.save(user=self.booker_user) # This booking is PENDING by default
-        self.assertEqual(booking.number_of_tickets, 4)
+        booking = serializer.save(user=self.booker_user)
+        # This new booking will be PENDING_PAYMENT by default if event price > 0 (handled by view/perform_create, here it's just PENDING)
+        # For capacity check, its requested tickets are added to current active.
+        self.assertEqual(booking.number_of_tickets, 2)
 
-        # Confirm this new booking. Now total confirmed = 1 (original) + 4 (new) = 5.
-        booking.status = Booking.BookingStatus.CONFIRMED
+        # To accurately test the next step, let's assume this booking also becomes active (e.g., PENDING_PAYMENT or CONFIRMED).
+        # If event price > 0, it would typically become PENDING_PAYMENT.
+        booking.status = Booking.BookingStatus.PENDING_PAYMENT # or CONFIRMED
         booking.save()
 
-        # Verify confirmed count (optional, direct model check)
-        # total_confirmed_db = Booking.objects.filter(event=self.event, status=Booking.BookingStatus.CONFIRMED).aggregate(Sum('number_of_tickets'))['total_tickets__sum'] or 0
-        # self.assertEqual(total_confirmed_db, 5)
+        # Now, active tickets = 3 (initial) + 2 (new booking) = 5. Available capacity = 0.
 
-
-        # Try to book 1 more ticket. Available should now be 0.
+        # Try to book 1 more ticket. Should fail.
         data_fail = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer_fail = BookingSerializer(data=data_fail, context=self.serializer_context)
         self.assertFalse(serializer_fail.is_valid())
-        # Expected error: "Booking exceeds event capacity. Only 0 ticket(s) available..."
-        self.assertIn("Only 0 tickets available", str(serializer_fail.errors['number_of_tickets'][0]))
+        self.assertIn('number_of_tickets', serializer_fail.errors)
+        # The error message from the serializer is "Booking exceeds event capacity. Only {available_tickets} ticket(s) currently available..."
+        self.assertIn("Only 0 ticket(s) currently available", str(serializer_fail.errors['number_of_tickets'][0]))
 
 
     def test_update_booking_adjusts_capacity_check_correctly(self):
@@ -231,4 +243,4 @@ class BookingSerializerTests(TestCase):
         data_fail = {'event': self.event.pk, 'number_of_tickets': 1}
         serializer_fail = BookingSerializer(data=data_fail, context=self.serializer_context)
         self.assertFalse(serializer_fail.is_valid())
-        self.assertIn("Only 0 tickets remaining", serializer_fail.errors['number_of_tickets'][0])
+        self.assertIn("Only 0 ticket(s) currently available", str(serializer_fail.errors['number_of_tickets'][0])) # Adjusted wording

@@ -96,3 +96,67 @@ def send_payment_receipt_email(payment_instance):
     # This might need a different structure if it's purely about payment and not directly a booking lifecycle event.
     # For now, if it's tied to a booking's payment success, send_booking_confirmation_email (now send_booking_related_email) covers it.
     pass
+
+
+def send_booking_cancellation_email(booking_instance):
+    """
+    Sends a booking cancellation email.
+    """
+    send_booking_related_email(
+        booking=booking_instance,
+        subject_template_name='emails/booking_cancellation_subject.txt',
+        body_html_template_name='emails/booking_cancellation_body.html',
+        body_text_template_name='emails/booking_cancellation_body.txt'
+    )
+
+def send_payment_failure_email(booking_instance):
+    """
+    Sends a payment failure notification email for a booking.
+    """
+    # The generic send_booking_related_email context should be mostly sufficient.
+    # We might want to add specific error messages if available on the booking/payment.
+    # For now, using the standard context.
+    send_booking_related_email(
+        booking=booking_instance,
+        subject_template_name='emails/payment_failed_subject.txt',
+        body_html_template_name='emails/payment_failed_body.html',
+        body_text_template_name='emails/payment_failed_body.txt'
+    )
+
+def send_new_user_registration_email(user_instance):
+    """
+    Sends a welcome email to a newly registered user.
+    """
+    if not user_instance or not user_instance.email:
+        print(f"Cannot send registration email: User or user email missing/empty for User ID {user_instance.id if user_instance else 'N/A'}.")
+        return
+
+    context = {
+        'user_name': user_instance.username,
+        'user_email': user_instance.email,
+        # Add any other context variables your templates might need, e.g., login_url
+        # 'login_url': reverse('account_login') # Example if you have named URL routes
+    }
+
+    subject_template_name = 'emails/new_user_registration_subject.txt'
+    body_html_template_name = 'emails/new_user_registration_body.html'
+    body_text_template_name = 'emails/new_user_registration_body.txt'
+
+    try:
+        subject = render_to_string(subject_template_name, context).strip()
+        html_content = render_to_string(body_html_template_name, context)
+        try:
+            text_content = render_to_string(body_text_template_name, context)
+        except Exception:
+            text_content = strip_tags(html_content)
+
+        from_email = settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@example.com'
+
+        msg = EmailMultiAlternatives(subject, text_content, from_email, [user_instance.email])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+
+        print(f"New user registration email sent successfully to {user_instance.email}")
+
+    except Exception as e:
+        print(f"Error sending new user registration email to {user_instance.email}: {e}")

@@ -199,31 +199,21 @@ CACHES = {
 }
 
 # Email Configuration
-# Uses SendGrid SMTP if SENDGRID_API_KEY is provided, otherwise defaults to console backend.
+# Configure email backend using environment variables.
+# Defaults to SMTP backend, but can be overridden (e.g., to console backend for development).
 
-SENDGRID_API_KEY = env('SENDGRID_API_KEY', default=None)
-DEFAULT_FROM_EMAIL_ADDRESS = env('DEFAULT_FROM_EMAIL', default='Event Platform <noreply@example.com>')
-SERVER_EMAIL_ADDRESS = env('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL_ADDRESS) # For error reports
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='localhost') # Default for local testing (e.g. MailHog)
+EMAIL_PORT = env.int('EMAIL_PORT', default=1025)    # Default for local testing (e.g. MailHog)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False) # Default for local testing (MailHog typically doesn't use TLS)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default=None) # SMTP username, None if not needed
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default=None) # SMTP password, None if not needed
 
-if SENDGRID_API_KEY:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = env('EMAIL_HOST', default='smtp.sendgrid.net')
-    EMAIL_PORT = env.int('EMAIL_PORT', default=587)
-    EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
-    EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='apikey')  # For SendGrid, this is literally 'apikey'
-    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
-else:
-    # Development/fallback: Console backend
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    EMAIL_HOST = 'localhost' # Not used by console backend
-    EMAIL_PORT = 25 # Not used by console backend
-    EMAIL_USE_TLS = False # Not used by console backend
-    EMAIL_HOST_USER = '' # Not used by console backend
-    EMAIL_HOST_PASSWORD = '' # Not used by console backend
-
-# These are used by Django's mail sending mechanisms (e.g. allauth password resets)
-DEFAULT_FROM_EMAIL = DEFAULT_FROM_EMAIL_ADDRESS
-SERVER_EMAIL = SERVER_EMAIL_ADDRESS
+# DEFAULT_FROM_EMAIL is used for various automated correspondence from Django/Allauth
+# Ensure this is a valid email address for your domain.
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@example.com')
+# SERVER_EMAIL is used for error notifications to site administrators.
+SERVER_EMAIL = env('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL) # Often same as DEFAULT_FROM_EMAIL
 
 
 REST_FRAMEWORK = {

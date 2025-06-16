@@ -81,6 +81,44 @@ const PaymentService = {
       console.error('Error fetching booking details:', error.response?.data || error.message);
       throw error;
     }
+  },
+
+  confirmCardPayment: async (
+    stripe: any, // Stripe.js instance
+    clientSecret: string,
+    cardElement: any, // The Stripe CardElement
+    billingDetails: { name?: string; email?: string; address?: any } // Stripe billing_details
+  ): Promise<stripe.PaymentIntentResponse> => { // Use Stripe's PaymentIntentResponse type
+    if (!stripe || !cardElement) {
+      console.error('Stripe.js or CardElement not initialized.');
+      return Promise.reject('Stripe.js or CardElement not initialized.');
+    }
+
+    try {
+      const { error, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: billingDetails,
+          },
+        }
+      );
+
+      if (error) {
+        console.error('Stripe card confirmation error:', error);
+        // Return the error object for the component to handle
+        return Promise.reject(error);
+      }
+
+      // paymentIntent contains the PaymentIntent object after confirmation
+      // https://stripe.com/docs/js/payment_intents/confirm_card_payment#confirm_card_payment_response-payment_intent
+      return Promise.resolve({ paymentIntent }); // Resolve with the paymentIntent object
+
+    } catch (error) {
+      console.error('An unexpected error occurred during card payment confirmation:', error);
+      return Promise.reject(error);
+    }
   }
 };
 

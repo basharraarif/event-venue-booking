@@ -14,6 +14,7 @@ class NestedEventSerializer(serializers.ModelSerializer):
     A simplified serializer for nested event representation within bookings.
     Provides key event details without excessive nesting.
     """
+    # TODO: Add currency to this serializer if needed for display consistency.
     class Meta:
         model = Event
         fields = ['id', 'name', 'start_time', 'ticket_price']
@@ -39,6 +40,16 @@ class BookingSerializer(serializers.ModelSerializer):
         help_text="ID of the event to book. Required for creating a booking."
     )
     # 'user' field for writing is handled by the ViewSet (perform_create) and is read-only here.
+
+    # Note on Concurrency for Capacity Checks:
+    # The `validate` method provides robust capacity checking at the application level.
+    # However, under very high concurrency (multiple users trying to book the last few tickets
+    # simultaneously), race conditions could potentially lead to overbooking.
+    # True atomicity for capacity checking would typically require database-level mechanisms
+    # such as `SELECT FOR UPDATE` on the related Event or Venue record within a transaction
+    # when creating/updating bookings, or using database constraints if applicable.
+    # This is a known area for potential improvement if the platform expects very high traffic
+    # for popular events. For now, the serializer-level validation provides a strong safeguard.
 
     class Meta:
         model = Booking
@@ -127,24 +138,69 @@ class BookingSerializer(serializers.ModelSerializer):
             # This is tricky because confirmed_tickets_count() on event includes all confirmed.
             # We need to adjust if this is an update to an existing booking.
 
-            # Calculate current number of confirmed tickets for the event
-            current_confirmed_tickets = Booking.objects.filter(
-                event=event,
-                status=Booking.BookingStatus.CONFIRMED
-            ).aggregate(total_tickets=models.Sum('number_of_tickets'))['total_tickets'] or 0
+            # Effective capacity of the event
+            # Assuming event.effective_capacity correctly gives event.max_capacity or event.venue.capacity
+            effective_capacity = event.effective_capacity
 
-            # If this is an update, we need to consider the tickets from the current booking instance.
-            # The capacity check should be against other confirmed bookings + the new requested ticket count for this booking.
-            effective_tickets_for_others = current_confirmed_tickets
-            if self.instance and self.instance.pk:
-                if self.instance.status == Booking.BookingStatus.CONFIRMED:
-                    effective_tickets_for_others -= self.instance.number_of_tickets # Exclude this booking's current confirmed tickets
-
-            if effective_tickets_for_others + requested_tickets > effective_capacity:
-                available_tickets = effective_capacity - effective_tickets_for_others
-                if available_tickets < 0: available_tickets = 0 # Ensure non-negative
+            if effective_capacity is None: # None might mean unlimited capacity
+                pass # No capacity check needed if unlimited
+            elif effective_capacity == 0:
                 raise serializers.ValidationError(
-                    {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) available for event '{event.name}' (excluding any existing tickets for this specific booking if being updated)."}
+                    {'number_of_tickets': "This event is not available for booking as it has zero capacity."}
+                )
+            else:
+                # Calculate current number of "active" tickets for the event.
+                # Active bookings are those that hold a spot (e.g., Confirmed or Pending Payment).
+                active_booking_statuses = [
+                    Booking.BookingStatus.CONFIRMED,
+                    Booking.BookingStatus.PENDING_PAYMENT
+                ]
+
+                current_active_tickets_query = Booking.objects.filter(
+                    event=event,
+                    status__in=active_booking_statuses
+                )
+
+                # If this is an update to an existing booking, exclude its previous ticket count from the sum.
+                # The new requested_tickets will be added to this sum for the check.
+                if self.instance and self.instance.pk:
+                    current_active_tickets_query = current_active_tickets_query.exclude(pk=self.instance.pk)
+
+                current_tickets_taken_by_others = current_active_tickets_query.aggregate(
+                    total_tickets=models.Sum('number_of_tickets')
+                )['total_tickets'] or 0
+
+                if current_tickets_taken_by_others + requested_tickets > effective_capacity:
+                    available_tickets = effective_capacity - current_tickets_taken_by_others
+                    if available_tickets < 0: # Should not happen if logic is correct but as a safeguard
+                        available_tickets = 0
+                    raise serializers.ValidationError(
+                        {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) currently available for event '{event.name}'."}
+                    )
+
+        # Validation for updating number_of_tickets based on payment status
+        if self.instance and 'number_of_tickets' in data and data['number_of_tickets'] != self.instance.number_of_tickets:
+            try:
+                payment = self.instance.payment
+                if payment.status != 'pending': # Check Payment model's status
+                    raise serializers.ValidationError({
+                        'number_of_tickets': f"Cannot change number of tickets once payment is {payment.status}."
+                    })
+            except Booking.payment.RelatedObjectDoesNotExist: # Correct exception name
+                 # If no payment object, allow ticket change (e.g. free booking or admin fixing)
+                pass
+            except AttributeError:
+                # If self.instance.payment doesn't exist (e.g. not pre-fetched or related_name issue)
+                # This might indicate a setup issue if payment is expected. For now, allow.
+                pass
+
+
+        return data
+
+    def get_payment_status(self, obj):
+        if hasattr(obj, 'payment') and obj.payment:
+            return obj.payment.status
+        return "not_required" # Or None, depending on desired representation if no payment
                 )
 
         # Validation for updating number_of_tickets based on payment status
