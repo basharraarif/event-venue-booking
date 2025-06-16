@@ -68,9 +68,6 @@ SECRET_KEY = env(
 # DEBUG is True if the DEBUG environment variable is set to 'True', otherwise False.
 DEBUG = env("DEBUG", default=False)
 
-# SECURITY WARNING: In production, ensure these are properly set!
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'] if DEBUG else [])
-
 CSRF_COOKIE_SECURE = not DEBUG  # True in production (when DEBUG=False)
 SESSION_COOKIE_SECURE = not DEBUG  # True in production
 
@@ -294,6 +291,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # For collectstatic
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Media files (User uploads)
+# The following MEDIA_URL and MEDIA_ROOT are suitable for local development and
+# serving user-uploaded files directly from the Django development server.
+# For a production environment, especially if dealing with user-uploaded media,
+# it is strongly recommended to configure external cloud storage (e.g., AWS S3,
+# Google Cloud Storage, Azure Blob Storage) to ensure scalability, reliability,
+# and security. Serving media files directly from the application server in
+# production is generally not recommended for performance and security reasons.
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 

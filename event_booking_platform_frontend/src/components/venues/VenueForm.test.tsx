@@ -120,4 +120,37 @@ describe('VenueForm Component', () => {
     render(<VenueForm onSubmit={mockOnSubmit} isSubmitting={true} />);
     expect(screen.getByRole('button', { name: /submitting.../i })).toBeDisabled();
   });
+
+  it('correctly processes amenities string for submission', async () => {
+    // Test with various amenity string inputs
+    const testCases = [
+      { input: 'WiFi, Projector, Stage', expected: ['WiFi', 'Projector', 'Stage'] },
+      { input: '  WiFi ,  Projector  ,Stage  ', expected: ['WiFi', 'Projector', 'Stage'] }, // Test with extra spaces
+      { input: 'SingleAmenity', expected: ['SingleAmenity'] },
+      { input: '', expected: [] }, // Test with empty string
+      { input: ', ,', expected: [] }, // Test with only commas and spaces
+      { input: 'WiFi,,Projector', expected: ['WiFi', 'Projector'] }, // Test with empty segments
+    ];
+
+    for (const tc of testCases) {
+      mockOnSubmit.mockClear(); // Clear mock for each case
+      render(<VenueForm onSubmit={mockOnSubmit} />);
+
+      // Fill required fields to pass validation
+      fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Amenity Test Venue' } });
+      fireEvent.change(screen.getByLabelText(/address/i), { target: { value: '123 Amenity St' } });
+      fireEvent.change(screen.getByLabelText(/capacity/i), { target: { value: '100' } });
+
+      // Set the amenities input
+      fireEvent.change(screen.getByLabelText(/amenities/i), { target: { value: tc.input } });
+
+      fireEvent.submit(screen.getByRole('button', { name: /submit venue/i }));
+
+      await waitFor(() => {
+        expect(mockOnSubmit).toHaveBeenCalledTimes(1);
+        const submittedData = mockOnSubmit.mock.calls[0][0] as VenueFormData;
+        expect(submittedData.amenities).toEqual(tc.expected);
+      });
+    }
+  });
 });

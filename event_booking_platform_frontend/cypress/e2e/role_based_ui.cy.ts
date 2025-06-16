@@ -54,25 +54,16 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
                     body: { email: user.email, password: user.password },
                 }).then(loginResp => {
                     user.token = loginResp.body.key;
-                    // Assign roles via API (assuming an admin endpoint or direct role assignment for testing)
-                    // This part is crucial and assumes a backend mechanism to assign roles.
-                    // If no such endpoint exists, roles must be pre-assigned or manually set in DB for test users.
-                    // For this test, we'll assume the first registered user ('admin') can assign roles or is admin by default.
-                    // And other users need roles assigned. This setup is complex for E2E `before`.
-                    // A simpler E2E approach is to have pre-existing users with these roles in the test DB.
-                    // For now, we'll proceed as if roles are obtained upon registration or via a test setup hook not shown here.
-                    // The key is that `user.token` is set.
-                    // We also need user IDs.
                     cy.request({
                         method: 'GET',
                         url: `${Cypress.env('apiUrl')}/auth/user/`,
                         headers: { Authorization: `Token ${user.token}` }
                     }).then(userResp => {
                         user.id = userResp.body.id;
-                        if (role === 'admin') { // Assuming first user is admin or has staff status
-                             // cy.request({ method: 'PATCH', url: `${Cypress.env('apiUrl')}/users/${user.id}/set-admin/`, headers: { Authorization: `Token ${users.admin.token}` }});
-                             // This is a placeholder for actual role assignment logic.
-                        }
+                        // Placeholder for actual role assignment via API if available in a real test setup
+                        // For now, roles are assumed to be assigned based on user type during backend setup or via a separate mechanism.
+                        // If backend allows role modification via API and this user (e.g. admin) has rights:
+                        // cy.request({ method: 'PATCH', url: `${Cypress.env('apiUrl')}/users/${user.id}/assign-role/`, headers: { Authorization: `Token ${users.admin.token}` }, body: {role: role} });
                     });
                 });
             });
@@ -88,13 +79,15 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
                 body: { name: 'VM Own Venue', address: '123 VM St', capacity: 100, owner: users.venueManager.id }
             }).then(resp => { venueByVMId = resp.body.id; });
 
-            // Event Organizer creates their own event (needs a venue first, use admin's venue or create one)
+            // Admin creates a general venue for other tests
             cy.request({
                 method: 'POST', url: `${Cypress.env('apiUrl')}/venues/`,
-                headers: { Authorization: `Token ${users.admin.token}` }, // Admin creates a general venue
+                headers: { Authorization: `Token ${users.admin.token}` },
                 body: { name: 'Admin General Venue', address: '789 Admin St', capacity: 200, owner: users.admin.id }
             }).then(venueResp => {
                 venueByAdminId = venueResp.body.id;
+
+                // Event Organizer creates their own event
                 cy.request({
                     method: 'POST', url: `${Cypress.env('apiUrl')}/events-management/`,
                     headers: { Authorization: `Token ${users.eventOrganizer.token}` },
@@ -102,23 +95,26 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
                             start_time: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
                             end_time: new Date(Date.now() + 74 * 60 * 60 * 1000).toISOString() }
                 }).then(resp => { eventByEOId = resp.body.id; });
-            });
 
-            // Admin creates an event (for testing EO access to other's events)
-             cy.request({
-                method: 'POST', url: `${Cypress.env('apiUrl')}/events-management/`,
-                headers: { Authorization: `Token ${users.admin.token}` },
-                body: { name: 'Admin General Event', venue: venueByAdminId, ticket_price: '30.00', organizer: users.admin.id,
-                        start_time: new Date(Date.now() + 96 * 60 * 60 * 1000).toISOString(),
-                        end_time: new Date(Date.now() + 98 * 60 * 60 * 1000).toISOString() }
-            }).then(resp => { eventByAdminId = resp.body.id; });
+                // Admin creates an event (for testing EO access to other's events)
+                 cy.request({
+                    method: 'POST', url: `${Cypress.env('apiUrl')}/events-management/`,
+                    headers: { Authorization: `Token ${users.admin.token}` },
+                    body: { name: 'Admin General Event', venue: venueByAdminId, ticket_price: '30.00', organizer: users.admin.id,
+                            start_time: new Date(Date.now() + 96 * 60 * 60 * 1000).toISOString(),
+                            end_time: new Date(Date.now() + 98 * 60 * 60 * 1000).toISOString() }
+                }).then(resp => { eventByAdminId = resp.body.id; });
+            });
         });
     });
 
     const loginAs = (userKey: keyof typeof users) => {
         const user = users[userKey];
         localStorage.setItem('authToken', user.token);
-        cy.visit('/'); // Refresh or visit homepage to apply logged-in state
+        // localStorage.setItem('userRoles', JSON.stringify([userKey])); // Simplified role storage for frontend
+        cy.visit('/');
+        cy.window().its('appContext').invoke('login', { user: { id: user.id, username: user.username, email: user.email, roles: [userKey] }, token: user.token });
+        cy.visit('/'); // Re-visit to ensure state is applied
     };
 
     context('Admin User UI and Permissions', () => {
@@ -127,20 +123,19 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
         });
 
         it('should see admin-specific UI elements and access admin pages', () => {
-            cy.get('nav').should('contain.text', users.admin.username); // Or some other indicator of being logged in
-            // Example: cy.get('a[href="/admin/dashboard"]').should('be.visible');
-            // Example: cy.get('button[data-testid="manage-all-events-btn"]').should('be.visible');
+            cy.get('nav').should('contain.text', users.admin.username);
+            cy.get('nav a[href="/dashboard/admin"]').should('be.visible'); // Generic admin dashboard link
 
-            // Visit an event and check for admin controls
             cy.visit(`/events/${eventByEOId}`); // Visit event created by EO
             cy.contains('h2', 'EO Own Event').should('be.visible');
-            // Example: cy.get('button[data-testid="admin-edit-event-btn"]').should('be.visible');
+            cy.contains('button', /edit event/i).should('be.visible'); // Admin can edit any event
+            cy.contains('button', /delete event/i).should('be.visible');
 
-            // Visit a venue and check for admin controls
+
             cy.visit(`/venues/${venueByVMId}`); // Visit venue created by VM
             cy.contains('h2', 'VM Own Venue').should('be.visible');
-            // Example: cy.get('button[data-testid="admin-edit-venue-btn"]').should('be.visible');
-            cy.log('Admin UI checks are placeholders, need actual selectors from frontend.');
+            cy.contains('button', /edit venue/i).should('be.visible'); // Admin can edit any venue
+            cy.contains('button', /delete venue/i).should('be.visible');
         });
     });
 
@@ -151,25 +146,27 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
 
         it('should see UI for managing own events but not venues', () => {
             cy.get('nav').should('contain.text', users.eventOrganizer.username);
-            // Example: cy.get('a[href="/events/create"]').should('be.visible');
-            // Example: cy.get('a[href="/venues/create"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/organizer/events/new"]').should('be.visible'); // Link to create new event
+            cy.get('nav a[href="/dashboard/manager/venues/new"]').should('not.exist'); // No link to create new venue
 
             // Visit own event
             cy.visit(`/events/${eventByEOId}`);
             cy.contains('h2', 'EO Own Event').should('be.visible');
-            // Example: cy.get('button[data-testid="edit-own-event-btn"]').should('be.visible');
+            cy.contains('button', /edit event/i).should('be.visible');
+            cy.contains('button', /delete event/i).should('be.visible');
+
 
             // Visit admin's event (someone else's event)
             cy.visit(`/events/${eventByAdminId}`);
             cy.contains('h2', 'Admin General Event').should('be.visible');
-            // Example: cy.get('button[data-testid="edit-own-event-btn"]').should('not.exist');
+            cy.contains('button', /edit event/i).should('not.exist');
+            cy.contains('button', /delete event/i).should('not.exist');
+
 
             // Attempt to navigate to venue creation page
-            cy.visit('/venues/create', { failOnStatusCode: false }); // Allow Cypress to handle non-2xx responses
-            // Verify redirection or error message. Depends on frontend implementation.
-            // Example: cy.url().should('not.include', '/venues/create');
-            // Example: cy.contains('You do not have permission to access this page.').should('be.visible');
-            cy.log('EO UI checks are placeholders.');
+            cy.visit('/dashboard/manager/venues/new', { failOnStatusCode: false });
+            cy.url().should('not.include', '/dashboard/manager/venues/new');
+            cy.contains(/access denied|please login/i).should('be.visible'); // Or other permission error message
         });
     });
 
@@ -180,24 +177,27 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
 
         it('should see UI for managing own venues but not events', () => {
             cy.get('nav').should('contain.text', users.venueManager.username);
-            // Example: cy.get('a[href="/venues/create"]').should('be.visible');
-            // Example: cy.get('a[href="/events/create"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/manager/venues/new"]').should('be.visible'); // Link to create new venue
+            cy.get('nav a[href="/dashboard/organizer/events/new"]').should('not.exist'); // No link to create new event
 
             // Visit own venue
             cy.visit(`/venues/${venueByVMId}`);
             cy.contains('h2', 'VM Own Venue').should('be.visible');
-            // Example: cy.get('button[data-testid="edit-own-venue-btn"]').should('be.visible');
+            cy.contains('button', /edit venue/i).should('be.visible');
+            cy.contains('button', /delete venue/i).should('be.visible');
+
 
             // Visit admin's venue
             cy.visit(`/venues/${venueByAdminId}`);
             cy.contains('h2', 'Admin General Venue').should('be.visible');
-            // Example: cy.get('button[data-testid="edit-own-venue-btn"]').should('not.exist');
+            cy.contains('button', /edit venue/i).should('not.exist');
+            cy.contains('button', /delete venue/i).should('not.exist');
+
 
             // Attempt to navigate to event creation page
-            cy.visit('/events/create', { failOnStatusCode: false });
-            // Example: cy.url().should('not.include', '/events/create');
-            // Example: cy.contains('You do not have permission to access this page.').should('be.visible');
-            cy.log('VM UI checks are placeholders.');
+            cy.visit('/dashboard/organizer/events/new', { failOnStatusCode: false });
+            cy.url().should('not.include', '/dashboard/organizer/events/new');
+            cy.contains(/access denied|please login/i).should('be.visible');
         });
     });
 
@@ -208,17 +208,27 @@ describe('Role-Based UI and Permissions E2E Tests', () => {
 
         it('should not see admin/management UI elements and access only own data', () => {
             cy.get('nav').should('contain.text', users.customer.username);
-            // Example: cy.get('a[href="/admin/dashboard"]').should('not.exist');
-            // Example: cy.get('a[href="/events/create"]').should('not.exist');
-            // Example: cy.get('a[href="/venues/create"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/admin"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/organizer/events/new"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/manager/venues/new"]').should('not.exist');
+            cy.get('nav a[href="/dashboard/my-bookings"]').should('be.visible');
 
-            cy.visit(`/events/${eventByEOId}`); // View an event
-            // Example: cy.get('button[data-testid="edit-event-btn"]').should('not.exist');
+            cy.visit(`/events/${eventByEOId}`);
+            cy.contains('h2', 'EO Own Event').should('be.visible');
+            cy.contains('button', /edit event/i).should('not.exist'); // No edit button for events
+            cy.contains('button', /delete event/i).should('not.exist');
+
+
+            cy.visit(`/venues/${venueByVMId}`);
+            cy.contains('h2', 'VM Own Venue').should('be.visible');
+            cy.contains('button', /edit venue/i).should('not.exist'); // No edit button for venues
+            cy.contains('button', /delete venue/i).should('not.exist');
+
 
             cy.visit('/dashboard/my-bookings');
             cy.contains('h1', /my bookings/i).should('be.visible');
-            // Further checks if there are bookings for this user.
-            cy.log('Customer UI checks are placeholders.');
+            // Further checks if there are bookings for this user can be added here.
+            // For now, just checking page access and visibility.
         });
     });
 });

@@ -330,4 +330,3 @@ class EmailUtilsTests(TestCase):
             self.assertEqual(text_body_used_for_email, expected_stripped_text)
             mock_msg_instance.attach_alternative.assert_called_once_with(expected_html_content, "text/html")
             mock_msg_instance.send.assert_called_once()
-```
