@@ -1,13 +1,4 @@
-import axios from 'axios'; // Reuse or create a new instance if specific config needed
-
-// Base API client from venueService - assuming it's configured for general use
-// If not, create a new one:
-const authApiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import axiosInstance from './axiosInstance'; // Use the shared axiosInstance
 
 // Interfaces
 export interface LoginCredentials {
@@ -46,7 +37,7 @@ export interface AuthResponse {
 
 export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
-    const response = await authApiClient.post<AuthResponse>('/auth/login/', credentials);
+    const response = await axiosInstance.post<AuthResponse>('/auth/login/', credentials); // Use axiosInstance
     return response.data;
   } catch (error) {
     console.error('Login failed:', error);
@@ -60,9 +51,9 @@ export const register = async (data: RegistrationData): Promise<AuthResponse | a
   try {
     // dj-rest-auth registration usually requires password1 and password2
     const payload = { ...data, password1: data.password, password2: data.password2 || data.password };
-    delete payload.password2; // remove if not needed directly by endpoint
+    // delete payload.password2; // dj-rest-auth.registration expects password1 and password2
 
-    const response = await authApiClient.post<AuthResponse | any>('/auth/registration/', payload);
+    const response = await axiosInstance.post<AuthResponse | any>('/auth/registration/', payload); // Use axiosInstance
     return response.data;
   } catch (error) {
     console.error('Registration failed:', error);
@@ -71,13 +62,12 @@ export const register = async (data: RegistrationData): Promise<AuthResponse | a
 };
 
 export const logout = async (token: string | null): Promise<void> => {
-  if (!token) return Promise.resolve(); // No token, nothing to do for backend
+  // Token is now handled by axiosInstance interceptor, but logout endpoint is special (doesn't strictly need it from client)
+  // However, dj-rest-auth logout invalidates the token on the backend.
+  // The interceptor will add the token if present in localStorage.
   try {
-    await authApiClient.post('/auth/logout/', null, { // Logout endpoint might not need a body
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    });
+    await axiosInstance.post('/auth/logout/', null); // Body is null, token from interceptor
+    // No need to pass token explicitly if axiosInstance handles it
   } catch (error) {
     console.error('Logout failed:', error);
     // Even if backend logout fails, frontend should clear its state.
@@ -86,13 +76,9 @@ export const logout = async (token: string | null): Promise<void> => {
   }
 };
 
-export const getCurrentUser = async (token: string): Promise<User> => {
+export const getCurrentUser = async (): Promise<User> => { // Token removed from args, assumed by interceptor
   try {
-    const response = await authApiClient.get<User>('/auth/user/', {
-      headers: {
-        'Authorization': `Token ${token}`
-      }
-    });
+    const response = await axiosInstance.get<User>('/auth/user/'); // Token from interceptor
     // Map pk to id if your frontend User interface expects 'id' primarily
     if (response.data && response.data.pk && !response.data.id) {
         response.data.id = response.data.pk;

@@ -63,9 +63,9 @@ class EventSerializerTests(TestCase):
         self.assertIn('Conference', data['categories'])
         self.assertEqual(Decimal(data['ticket_price']), self.event.ticket_price)
         self.assertIn('effective_capacity', data)
-        self.assertIn('confirmed_tickets_count', data)
+        self.assertIn('active_tickets_count', data) # Changed from confirmed_tickets_count
         self.assertEqual(data['effective_capacity'], self.venue_default.capacity) # Assuming no event.max_capacity initially
-        self.assertEqual(data['confirmed_tickets_count'], 0)
+        self.assertEqual(data['active_tickets_count'], 0) # Changed from confirmed_tickets_count
 
 
     def test_deserialize_event_valid_create(self):
@@ -128,7 +128,7 @@ class EventSerializerTests(TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn('max_capacity', serializer.errors)
-        self.assertIn(f"cannot be less than already confirmed tickets ({self.event.confirmed_tickets_count()})", serializer.errors['max_capacity'][0])
+        self.assertIn(f"cannot be less than already confirmed tickets ({self.event.active_tickets_count()})", serializer.errors['max_capacity'][0]) # Changed to active_tickets_count
 
     def test_validate_max_capacity_equal_to_confirmed_on_update_allowed(self):
         user1 = User.objects.create_user('booker3_cap_test', 'p3')
@@ -159,14 +159,14 @@ class EventSerializerTests(TestCase):
         serializer = EventSerializer(instance=self.event, context=self.serializer_context)
         data = serializer.data
         self.assertEqual(data['effective_capacity'], self.event.effective_capacity)
-        self.assertEqual(data['confirmed_tickets_count'], self.event.confirmed_tickets_count())
+        self.assertEqual(data['active_tickets_count'], self.event.active_tickets_count()) # Changed from confirmed_tickets_count
         self.assertEqual(data['organizer_username'], self.event.organizer.username)
         self.assertEqual(data['venue_name'], self.event.venue.name)
         # Attempting to write to these fields should be ignored or raise error depending on serializer setup
         # For ReadOnlyField, they are simply not used for deserialization.
         update_data = {
             'effective_capacity': 5000,
-            'confirmed_tickets_count': 1000,
+            'active_tickets_count': 1000, # Changed from confirmed_tickets_count
             'organizer_username': 'new_org', # This is not a writable field
         }
         update_serializer = EventSerializer(self.event, data=update_data, partial=True, context=self.serializer_context)

@@ -55,6 +55,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'status',
             'payment_status',    # Read-only property from model
             'payment_details',   # Read-only nested serializer
+            'payment_intent_id', # Read-only, managed by system
         ]
         read_only_fields = [
             'booking_time',
@@ -63,6 +64,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'user', # User is set by perform_create in the ViewSet, not taken from request payload directly.
             # 'payment_status' is handled by SerializerMethodField now
             'payment_details',
+            'payment_intent_id',
         ]
         extra_kwargs = {
             'number_of_tickets': {
@@ -125,36 +127,24 @@ class BookingSerializer(serializers.ModelSerializer):
             # This is tricky because confirmed_tickets_count() on event includes all confirmed.
             # We need to adjust if this is an update to an existing booking.
 
-            currently_confirmed_for_event = event.active_tickets_count()
+            # Calculate current number of confirmed tickets for the event
+            current_confirmed_tickets = Booking.objects.filter(
+                event=event,
+                status=Booking.BookingStatus.CONFIRMED
+            ).aggregate(total_tickets=models.Sum('number_of_tickets'))['total_tickets'] or 0
 
-            # If this is an update to an existing booking that was already 'confirmed',
-            # its tickets are already in `currently_confirmed_for_event`.
-            # We need to subtract them before adding the new `requested_tickets`.
-            tickets_from_this_booking_pre_update = 0
-            if self.instance and self.instance.pk and self.instance.status == Booking.BookingStatus.CONFIRMED:
-                tickets_from_this_booking_pre_update = self.instance.number_of_tickets
-
-            # Effective number of tickets already booked by others (or by this booking if it wasn't confirmed)
-            # This logic ensures that if a user is changing the number of tickets for their *own confirmed* booking,
-            # the capacity check correctly accounts for the tickets they are releasing or adding.
-
-            # If it's an update, adjust the count of currently confirmed tickets
+            # If this is an update, we need to consider the tickets from the current booking instance.
+            # The capacity check should be against other confirmed bookings + the new requested ticket count for this booking.
+            effective_tickets_for_others = current_confirmed_tickets
             if self.instance and self.instance.pk:
-                # Subtract the original number of tickets for *this specific booking* from the total,
-                # as these tickets are being replaced by the 'requested_tickets'.
-                # This applies regardless of the original booking's status, as active_tickets_count includes pending_payment and confirmed.
-                # If the original booking was not counted in active_tickets_count (e.g. it was 'pending'), this subtraction might be incorrect.
-                # Let's ensure we only subtract if it was indeed part of the count.
-                if self.instance.status in [Booking.BookingStatus.CONFIRMED, Booking.BookingStatus.PENDING_PAYMENT]:
-                    currently_confirmed_for_event -= self.instance.number_of_tickets
+                if self.instance.status == Booking.BookingStatus.CONFIRMED:
+                    effective_tickets_for_others -= self.instance.number_of_tickets # Exclude this booking's current confirmed tickets
 
-            # Now, currently_confirmed_for_event represents tickets from *other* bookings.
-            # Add the requested tickets for the current operation.
-            if currently_confirmed_for_event + requested_tickets > effective_capacity:
-                available_tickets = effective_capacity - currently_confirmed_for_event
+            if effective_tickets_for_others + requested_tickets > effective_capacity:
+                available_tickets = effective_capacity - effective_tickets_for_others
                 if available_tickets < 0: available_tickets = 0 # Ensure non-negative
                 raise serializers.ValidationError(
-                    {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) remaining for event '{event.name}'."}
+                    {'number_of_tickets': f"Booking exceeds event capacity. Only {available_tickets} ticket(s) available for event '{event.name}' (excluding any existing tickets for this specific booking if being updated)."}
                 )
 
         # Validation for updating number_of_tickets based on payment status

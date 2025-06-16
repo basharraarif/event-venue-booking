@@ -10,7 +10,9 @@ from core.email_utils import send_booking_related_email
 from core.permissions import IsOwnerOrAdmin, IsCustomer, IsEventOrganizer, IsVenueManager # Import new permissions
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from payments.models import Payment # Import Payment model
-from django.db.models import Q # For complex queries
+from django.db.models import Q, Sum # For complex queries and Sum
+from events.models import Event # Explicit import for Event model
+from rest_framework import serializers # For serializers.ValidationError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -143,11 +145,17 @@ class BookingViewSet(viewsets.ModelViewSet):
                     {"detail": "This event cannot be booked as it has zero capacity."}
                 )
 
-            current_active_tickets = event.active_tickets_count()
-            if current_active_tickets + requested_tickets > effective_capacity:
-                available_tickets = effective_capacity - current_active_tickets
+            # Calculate current number of confirmed (or otherwise active for capacity) tickets for the event
+            # As per subtask: only CONFIRMED bookings count against capacity.
+            current_booked_tickets = Booking.objects.filter(
+                event=event,
+                status=Booking.BookingStatus.CONFIRMED
+            ).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
+
+            if requested_tickets > (effective_capacity - current_booked_tickets):
+                remaining_capacity = effective_capacity - current_booked_tickets
                 raise serializers.ValidationError(
-                    {"detail": f"Not enough tickets available. Only {available_tickets} left."}
+                    {'detail': f"Booking exceeds event capacity. Only {remaining_capacity} tickets available."}
                 )
         # --- End Capacity Check ---
 
@@ -233,13 +241,16 @@ class BookingViewSet(viewsets.ModelViewSet):
                             {"detail": "This event has zero capacity; tickets cannot be modified."}
                         )
 
-                # Account for tickets already held by this booking
-                current_active_tickets_excluding_this = event.active_tickets_count() - original_number_of_tickets
+                # Calculate current number of confirmed tickets for the event, excluding the current booking being updated
+                current_confirmed_tickets_others = Booking.objects.filter(
+                    event=event,
+                    status=Booking.BookingStatus.CONFIRMED
+                ).exclude(pk=original_booking.pk).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
 
-                if current_active_tickets_excluding_this + requested_new_number_of_tickets > effective_capacity:
-                    available_tickets = effective_capacity - current_active_tickets_excluding_this
+                if current_confirmed_tickets_others + requested_new_number_of_tickets > effective_capacity:
+                    available_tickets = effective_capacity - current_confirmed_tickets_others
                     raise serializers.ValidationError(
-                        {"detail": f"Not enough tickets available for update. Only {available_tickets} left (excluding your original booking)."}
+                        {"detail": f"Update exceeds event capacity. Only {available_tickets} tickets available for others or for increase."}
                     )
             # --- End Capacity Check for Update ---
 

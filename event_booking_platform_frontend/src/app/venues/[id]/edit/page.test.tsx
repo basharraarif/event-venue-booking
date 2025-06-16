@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import EditVenuePage from './page'; // Path to the EditVenuePage component
+import EditVenuePageInternal from './page'; // Import the actual page component
 import { getVenueById, updateVenue, Venue } from '@/services/venueService';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext'; // Will be mocked
 
 // Mock services and navigation
 jest.mock('@/services/venueService');
@@ -12,22 +12,43 @@ const mockUpdateVenue = updateVenue as jest.MockedFunction<typeof updateVenue>;
 
 const mockRouterPush = jest.fn();
 const mockRouterBack = jest.fn();
-const mockUseParams = jest.fn();
-
+const mockRouterReplace = jest.fn(); // For RoleRequired redirection
+let mockParams = { id: '1' }; // Default mock params
 jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({ push: mockRouterPush, back: mockRouterBack, replace: jest.fn() })),
-  useParams: jest.fn(() => mockUseParams()), // Use the mock function here
+  useRouter: jest.fn(() => ({ push: mockRouterPush, back: mockRouterBack, replace: mockRouterReplace })),
+  useParams: jest.fn(() => mockParams),
   usePathname: jest.fn((() => '/venues/1/edit')),
 }));
 
-// Mock the withAuth HOC
-jest.mock('@/components/auth/withAuth', () => (WrappedComponent) => {
-    // eslint-disable-next-line react/display-name
-    return (props) => <WrappedComponent {...props} />;
+// Mock AuthContext
+jest.mock('@/contexts/AuthContext');
+const mockUseAuth = useAuth as jest.Mock;
+
+// Mock RoleRequired
+jest.mock('@/components/auth/RoleRequired', () => ({ children, requiredRoles, showError }: any) => {
+  const auth = useAuth(); // Uses the mocked useAuth
+  const rolesToCheck = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+  const userHasRequiredRole = rolesToCheck.some((role: string) => auth.hasRole(role));
+
+  if (auth.isLoading) return <div>Mock Loading Auth...</div>;
+  if (!auth.isAuthenticated) {
+    if (showError) return <div data-testid="mock-role-error">Not Authenticated (RoleRequired Mock)</div>;
+    return null;
+  }
+  if (!userHasRequiredRole) {
+    if (showError) return <div data-testid="mock-role-error">Access Denied: Missing Role (RoleRequired Mock)</div>;
+    return null;
+  }
+  return <>{children}</>;
 });
 
+// Mock common components
+jest.mock('@/components/common/LoadingSpinner', () => ({ message }: { message: string }) => <div data-testid="loading-spinner">{message}</div>);
+jest.mock('@/components/common/AlertMessage', () => ({ message, type }: { message: string, type: string }) => <div data-testid="alert-message" data-type={type}>{message}</div>);
+
+
 const mockVenueData: Venue = {
-  id: 1,
+  id: "1", // Changed to string to match typical UUIDs if used, or keep as number if backend uses number IDs
   name: 'Existing Venue',
   address: '1 Old Street',
   capacity: 80,
@@ -35,47 +56,101 @@ const mockVenueData: Venue = {
   pricing_per_hour: '40.00',
   pricing_per_day: '250.00',
   is_available: true,
+  owner: { id: "venueOwner123", username: "venueOwnerUser" } as any, // Add owner for tests
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
 
-// Helper to render with AuthProvider
-const renderWithAuthProvider = (ui: React.ReactElement) => {
-  return render(
-    <AuthProvider>
-      {ui}
-    </AuthProvider>
-  );
+
+// Helper to render with specific AuthContext values (already defined in previous diff)
+const renderPage = (authContextValue: Partial<ReturnType<typeof useAuth>>, currentParams = { id: '1' }) => {
+  mockUseAuth.mockReturnValue({
+    isAuthenticated: false, user: null, isLoading: false, hasRole: jest.fn().mockReturnValue(false),
+    login: jest.fn(), logout: jest.fn(), fetchAndUpdateUser: jest.fn().mockResolvedValue(undefined), token: null,
+    ...authContextValue,
+  });
+  mockParams = currentParams; // Update mockParams for useParams()
+  return render(<EditVenuePageInternal />);
 };
 
-describe('EditVenuePage Component', () => {
+
+describe('EditVenuePage Component (with Role and Ownership Protection)', () => {
+  const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
+  const ROLE_CUSTOMER = 'CUSTOMER';
+  const venueOwnerUser = { id: "venueOwner123", username: "venueOwnerUser", roles: [ROLE_VENUE_MANAGER] };
+  const nonOwnerUser = { id: "nonOwnerUser456", username: "nonOwner", roles: [ROLE_VENUE_MANAGER] };
+  const customerUser = { id: "customer789", username: "customer", roles: [ROLE_CUSTOMER] };
+
   beforeEach(() => {
     mockGetVenueById.mockClear();
     mockUpdateVenue.mockClear();
     mockRouterPush.mockClear();
     mockRouterBack.mockClear();
-    // Setup mock useParams to return a specific ID for each test
-    mockUseParams.mockReturnValue({ id: '1' });
+    mockRouterReplace.mockClear();
+    mockUseAuth.mockReset();
+    mockParams = { id: '1' }; // Reset to default params
   });
 
-  it('fetches venue data and pre-fills the form', async () => {
+  it('redirects unauthenticated user', async () => {
+    renderPage({ isAuthenticated: false, isLoading: false });
+    // RoleRequired mock will cause redirect or render its specific message
+    // Check that the main form content is not rendered
+    expect(screen.queryByRole('heading', { name: /edit venue/i })).not.toBeInTheDocument();
+  });
+
+  it('redirects authenticated user without VENUE_MANAGER role', async () => {
+    renderPage({
+      isAuthenticated: true,
+      user: customerUser as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_CUSTOMER,
+    });
+    expect(screen.queryByRole('heading', { name: /edit venue/i })).not.toBeInTheDocument();
+    // Check for RoleRequired's mock message
+    expect(screen.getByTestId('mock-role-error')).toHaveTextContent('Access Denied: Missing Role (RoleRequired Mock)');
+  });
+
+  it('shows error for VENUE_MANAGER who is not the owner', async () => {
+    mockGetVenueById.mockResolvedValueOnce(mockVenueData); // mockVenueData owner is venueOwner123
+    renderPage({
+      isAuthenticated: true,
+      user: nonOwnerUser as any, // This user is a VM but not the owner of mockVenueData
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-message')).toHaveTextContent('You are not authorized to edit this venue.');
+    });
+    expect(screen.queryByRole('heading', { name: /edit venue/i })).not.toBeInTheDocument();
+  });
+
+  it('fetches venue data and pre-fills the form for VENUE_MANAGER owner', async () => {
     mockGetVenueById.mockResolvedValueOnce(mockVenueData);
-    renderWithAuthProvider(<EditVenuePage />);
-
-    await waitFor(() => {
-      expect(mockGetVenueById).toHaveBeenCalledWith('1');
+    renderPage({
+      isAuthenticated: true,
+      user: venueOwnerUser as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
     });
 
-    await waitFor(() => {
-        expect(screen.getByLabelText(/name/i)).toHaveValue(mockVenueData.name);
-    });
+    await waitFor(() => expect(mockGetVenueById).toHaveBeenCalledWith('1'));
+    await waitFor(() => expect(screen.getByLabelText(/name/i)).toHaveValue(mockVenueData.name));
     expect(screen.getByLabelText(/address/i)).toHaveValue(mockVenueData.address);
     expect(screen.getByLabelText(/capacity/i)).toHaveValue(mockVenueData.capacity);
-    expect(screen.getByLabelText(/amenities/i)).toHaveValue((mockVenueData.amenities as string[]).join(', '));
+    // Ensure amenities are joined correctly if they are an array
+    const amenitiesValue = Array.isArray(mockVenueData.amenities) ? mockVenueData.amenities.join(', ') : mockVenueData.amenities;
+    expect(screen.getByLabelText(/amenities/i)).toHaveValue(amenitiesValue);
   });
 
-  it('calls updateVenue and redirects on successful submission', async () => {
+  it('calls updateVenue and redirects on successful submission for VENUE_MANAGER owner', async () => {
     mockGetVenueById.mockResolvedValueOnce(mockVenueData);
+    renderPage({
+      isAuthenticated: true,
+      user: venueOwnerUser as any,
+      isLoading: false,
+      hasRole: (role: string) => role === ROLE_VENUE_MANAGER,
+    });
     const updatedVenueDetails = {
       name: 'Updated Venue Name',
       address: '1 New Street',

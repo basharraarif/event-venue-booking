@@ -86,16 +86,16 @@ const EventDetailBooking: React.FC<EventDetailBookingProps> = ({ eventId }) => {
 
     try {
       const newBooking: Booking = await bookingService.createBooking(bookingPayload);
-      // Successfully created booking, now check payment status for redirection
-      if (newBooking.payment_status === 'pending' && newBooking.id) {
+      // Successfully created booking, now check booking status for redirection
+      if (newBooking.status === 'pending_payment' && newBooking.id) { // Check Booking.status
         router.push(`/checkout/${newBooking.id}`);
-      } else if (newBooking.payment_status === 'not_required') {
+      } else if (newBooking.status === 'confirmed') { // If already confirmed, it's likely free
         // For free events or if payment is not needed for other reasons
-        alert("Booking successful! This event requires no payment."); // Replace with a proper notification
-        router.push('/dashboard/bookings'); // Or event page, or a booking confirmation page
+        alert("Booking successful! This event requires no payment and is confirmed."); // Replace with a proper notification
+        router.push('/dashboard/my-bookings'); // Or event page, or a booking confirmation page
       } else {
-        // Handle other statuses or unexpected scenarios
-        setBookingError("Booking created, but payment status is unclear. Please check your bookings.");
+        // Handle other statuses or unexpected scenarios (e.g. 'pending' for other reasons)
+        setBookingError(`Booking created with status: ${newBooking.status}. Please check your bookings.`);
       }
     } catch (error: any) {
       console.error("Booking failed:", error);

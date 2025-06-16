@@ -4,11 +4,16 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { getVenues, Venue } from '../../services/venueService'; // Assuming Venue type is exported
 import VenueCard from './VenueCard';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { debounce } from 'lodash';
 import LoadingSpinner from '@/components/common/LoadingSpinner'; // Import LoadingSpinner
 import AlertMessage from '@/components/common/AlertMessage'; // Import AlertMessage
 
+// Define role constants, ideally from a shared file
+const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
+
 const VenueList: React.FC = () => {
+  const { isAuthenticated, hasRole } = useAuth(); // Get auth context
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +99,13 @@ const VenueList: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Venues</h1>
-        <Link href="/venues/create" legacyBehavior>
-          <a className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
-            Create New Venue
-          </a>
-        </Link>
+        {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
+          <Link href="/venues/create" legacyBehavior>
+            <a className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+              Create New Venue
+            </a>
+          </Link>
+        )}
       </div>
 
       {/* Filter Section */}
@@ -228,11 +235,13 @@ const VenueList: React.FC = () => {
       {venues.length === 0 && !loading && !error && (
         <div className="text-center py-10" data-cy="no-venues-message">
           <p className="text-xl text-gray-700 dark:text-gray-300">No venues match your criteria or none available.</p>
-           <Link href="/venues/create" legacyBehavior>
-            <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
-              Create New Venue
-            </a>
-          </Link>
+            {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
+              <Link href="/venues/create" legacyBehavior>
+                <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+                  Create New Venue
+                </a>
+              </Link>
+            )}
         </div>
       )}
 

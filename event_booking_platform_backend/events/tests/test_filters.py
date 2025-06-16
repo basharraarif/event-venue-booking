@@ -159,3 +159,17 @@ class EventFilterSetTests(APITestCase):
         self.assertIn("Music Fest Weekend", names_range) # 150.00
         self.assertIn("Ongoing Workshop", names_range) # 75.50
         self.assertEqual(len(names_range), 2)
+
+    def test_filter_combined(self):
+        # Filter by status 'upcoming' AND category 'Technology'
+        response = self.client.get(self.list_url, {'status': 'upcoming', 'category_name': 'Technology'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Expected: Tech Conference 2024
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], "Tech Conference 2024")
+
+        # Filter by name 'Fest' AND venue ID of venue2
+        response_name_venue = self.client.get(self.list_url, {'name': 'Fest', 'venue': self.venue2.pk})
+        self.assertEqual(response_name_venue.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response_name_venue.data), 1)
+        self.assertEqual(response_name_venue.data[0]['name'], "Music Fest Weekend")

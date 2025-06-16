@@ -198,20 +198,32 @@ CACHES = {
     # }
 }
 
-# Email Configuration for Development
-# https://docs.djangoproject.com/en/dev/topics/email/#console-backend
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # Default for dev
+# Email Configuration
+# Uses SendGrid SMTP if SENDGRID_API_KEY is provided, otherwise defaults to console backend.
 
-# PRODUCTION EMAIL CONFIGURATION (Example using django-environ, to be uncommented and configured in production)
-# EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-# EMAIL_HOST = env('EMAIL_HOST', default='localhost')
-# EMAIL_PORT = env.int('EMAIL_PORT', default=25)  # Use env.int for integer values
-# EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
-# EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
-# EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False)  # Use env.bool for boolean values
-# EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)  # Mutually exclusive with EMAIL_USE_TLS
-# DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
-# SERVER_EMAIL = env('SERVER_EMAIL', default='root@localhost')  # For error notifications
+SENDGRID_API_KEY = env('SENDGRID_API_KEY', default=None)
+DEFAULT_FROM_EMAIL_ADDRESS = env('DEFAULT_FROM_EMAIL', default='Event Platform <noreply@example.com>')
+SERVER_EMAIL_ADDRESS = env('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL_ADDRESS) # For error reports
+
+if SENDGRID_API_KEY:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = env('EMAIL_HOST', default='smtp.sendgrid.net')
+    EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+    EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+    EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='apikey')  # For SendGrid, this is literally 'apikey'
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+else:
+    # Development/fallback: Console backend
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    EMAIL_HOST = 'localhost' # Not used by console backend
+    EMAIL_PORT = 25 # Not used by console backend
+    EMAIL_USE_TLS = False # Not used by console backend
+    EMAIL_HOST_USER = '' # Not used by console backend
+    EMAIL_HOST_PASSWORD = '' # Not used by console backend
+
+# These are used by Django's mail sending mechanisms (e.g. allauth password resets)
+DEFAULT_FROM_EMAIL = DEFAULT_FROM_EMAIL_ADDRESS
+SERVER_EMAIL = SERVER_EMAIL_ADDRESS
 
 
 REST_FRAMEWORK = {

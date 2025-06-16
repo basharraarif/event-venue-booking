@@ -28,6 +28,7 @@ class Booking(models.Model):
         blank=True # Should not be user-editable directly in forms if logic handles it
     )
     total_price = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
+    payment_intent_id = models.CharField(max_length=255, null=True, blank=True, help_text="Stripe PaymentIntent ID, if applicable.")
 
     def __str__(self):
         return f"Booking for {self.event.name} by {self.user.username} ({self.number_of_tickets} tickets)"

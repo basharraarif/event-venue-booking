@@ -4,7 +4,7 @@ jest.mock('next/link', () => {
     return <a href={href}>{children}</a>;
   }
 });
-import React from 'react';
+// import React from 'react'; // Removed duplicate import
 import { render, screen, waitFor } from '@testing-library/react';
 import { useParams } from 'next/navigation';
 import CheckoutPage from './page'; // Import the page component
@@ -64,7 +64,7 @@ describe('CheckoutPage', () => {
       event_details: { name: 'Test Event', ticket_price: '10.00' },
       number_of_tickets: 2,
       total_price: '20.00',
-      status: 'pending', // Crucial for allowing payment
+      status: 'pending_payment', // Changed to pending_payment
       price_per_ticket_at_booking: '10.00',
     });
     mockPaymentService.createPaymentIntent.mockResolvedValue({
@@ -117,18 +117,18 @@ describe('CheckoutPage', () => {
     });
   });
 
-  it('shows error if booking status is not "pending"', async () => {
+  it('shows error if booking status is not "pending_payment"', async () => {
     mockBookingService.getBookingById.mockResolvedValueOnce({
       id: 'booking123',
-      event_details: { name: 'Test Event', ticket_price: '10.00' }, // Added event_details
-      number_of_tickets: 2, // Added
-      total_price: '20.00', // Added
-      status: 'confirmed', // Not pending
-      price_per_ticket_at_booking: '10.00', // Added
+      event_details: { name: 'Test Event', ticket_price: '10.00' },
+      number_of_tickets: 2,
+      total_price: '20.00',
+      status: 'confirmed', // Not pending_payment
+      price_per_ticket_at_booking: '10.00',
     });
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('This booking is already confirmed and cannot be paid for.');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent("This booking is already confirmed and cannot be paid for. Payment can only be made for 'pending_payment' bookings.");
     });
   });
 

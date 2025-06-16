@@ -19,21 +19,22 @@ class PaymentIntentCreateSerializer(serializers.Serializer):
                 logger.warning(f"PaymentIntent creation attempt for booking {value} with zero or negative total price.")
                 raise serializers.ValidationError("Booking does not require payment (total price is zero or less).")
 
-            # Check if the booking payment status itself indicates it's not pending or not required
-            if booking.payment_status not in ['pending', 'failed']:
-                 logger.warning(f"PaymentIntent creation attempt for booking {value} with payment_status '{booking.payment_status}'.")
-                 raise serializers.ValidationError(f"Booking payment status is '{booking.payment_status}'. Payment intent can only be created for 'pending' or 'failed' payments.")
+            # Check the booking's main status.
+            # A payment intent should typically only be created for bookings awaiting payment.
+            if booking.status != Booking.BookingStatus.PENDING_PAYMENT:
+                logger.warning(f"PaymentIntent creation attempt for booking {value} with status '{booking.status}'.")
+                raise serializers.ValidationError(f"Booking status is '{booking.status}'. Payment intent can only be created for bookings in '{Booking.BookingStatus.PENDING_PAYMENT}' status.")
 
-            # Check the associated Payment object status
-            if hasattr(booking, 'payment'):
-                if booking.payment.status not in ['pending', 'failed']:
+            # Check the associated Payment object status, if it exists.
+            # A Payment object is usually created when booking moves to PENDING_PAYMENT.
+            if hasattr(booking, 'payment') and booking.payment:
+                if booking.payment.status not in ['pending', 'failed']: # Payment model statuses
                     logger.warning(f"PaymentIntent creation attempt for booking {value} where associated Payment object status is '{booking.payment.status}'.")
-                    raise serializers.ValidationError(f"Associated payment record is in status '{booking.payment.status}'. Cannot create new intent.")
+                    raise serializers.ValidationError(f"Associated payment record is in status '{booking.payment.status}'. Cannot create new intent for this payment.")
             else:
-                # This case should ideally be handled: if a booking requires payment, a Payment object should exist.
-                # However, if it doesn't, and the booking.payment_status is 'pending', we might allow creation.
-                # This depends on the logic in booking creation. For now, let's assume a Payment object might not exist yet if booking.payment_status is 'pending'.
-                logger.info(f"Booking {value} requires payment (total_price: {booking.total_price}, payment_status: {booking.payment_status}) but no associated Payment object found. This might be okay if one is created during this process.")
+                # If booking status is PENDING_PAYMENT but no Payment object, this is unusual but might be allowed if PI creation also creates Payment.
+                # The current CreatePaymentIntentView does a get_or_create for Payment.
+                logger.info(f"Booking {value} is PENDING_PAYMENT (total_price: {booking.total_price}) but no associated Payment object found yet. One will be created or retrieved.")
 
         except Booking.DoesNotExist:
             logger.error(f"PaymentIntent creation attempt for non-existent booking {value}.")

@@ -12,7 +12,7 @@ export interface Booking {
   price_per_ticket_at_booking?: string; // Decimal as string, read-only
   total_price: string; // Decimal as string, read-only
   booking_time: string; // ISO 8601 datetime string, read-only
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'pending_payment'; // Added 'pending_payment'
 }
 
 export interface CreateBookingPayload {
@@ -24,7 +24,7 @@ export interface CreateBookingPayload {
 export interface GetBookingsParams {
   user?: string; // Filter by User ID
   event?: string; // Filter by Event ID
-  status?: 'pending' | 'confirmed' | 'cancelled';
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'pending_payment'; // Added 'pending_payment'
   // Add other potential filter params here, e.g., date ranges
 }
 

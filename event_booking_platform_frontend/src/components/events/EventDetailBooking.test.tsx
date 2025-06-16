@@ -122,8 +122,14 @@ describe('EventDetailBooking Component', () => {
     renderComponent({ max_capacity: 10, active_tickets_count: 5 }); // 5 tickets available
     await waitFor(() => screen.getByText('Test Event with Capacity'));
 
-    const mockBookingResponse = { id: 'booking789', payment_status: 'pending', /* other fields */ };
-    mockBookingService.createBooking.mockResolvedValue(mockBookingResponse as any);
+    // Simulate a booking that requires payment
+    const mockPaidBookingResponse = {
+      id: 'bookingPaid123',
+      status: 'pending_payment',
+      total_price: '40.00'
+      // other fields as needed by Booking type
+    };
+    mockBookingService.createBooking.mockResolvedValue(mockPaidBookingResponse as any);
 
     const ticketsInput = screen.getByLabelText(/number of tickets/i);
     fireEvent.change(ticketsInput, { target: { value: '2' } });
@@ -136,7 +142,40 @@ describe('EventDetailBooking Component', () => {
       event: mockEventBase.id,
       number_of_tickets: 2,
     }));
-    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/checkout/booking789'));
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/checkout/bookingPaid123'));
+  });
+
+  it('handles successful booking and redirects for free event', async () => {
+    renderComponent({ ticket_price: '0.00', max_capacity: 10, active_tickets_count: 5 }); // Free event
+    await waitFor(() => screen.getByText('Test Event with Capacity'));
+
+    // Simulate a booking that is confirmed (free event)
+    const mockFreeBookingResponse = {
+      id: 'bookingFree456',
+      status: 'confirmed',
+      total_price: '0.00'
+      // other fields as needed
+    };
+    mockBookingService.createBooking.mockResolvedValue(mockFreeBookingResponse as any);
+
+    // Mock window.alert
+    const mockAlert = jest.spyOn(window, 'alert').mockImplementation(() => {});
+
+    const ticketsInput = screen.getByLabelText(/number of tickets/i);
+    fireEvent.change(ticketsInput, { target: { value: '1' } });
+
+    const bookButton = screen.getByRole('button', { name: /book tickets/i });
+    fireEvent.click(bookButton);
+
+    expect(bookButton).toHaveTextContent('Processing...');
+    await waitFor(() => expect(mockBookingService.createBooking).toHaveBeenCalledWith({
+      event: mockEventBase.id,
+      number_of_tickets: 1,
+    }));
+    await waitFor(() => expect(mockAlert).toHaveBeenCalledWith('Booking successful! This event requires no payment and is confirmed.'));
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/dashboard/my-bookings'));
+
+    mockAlert.mockRestore(); // Clean up mock
   });
 
   it('displays backend validation error for capacity on booking attempt', async () => {
