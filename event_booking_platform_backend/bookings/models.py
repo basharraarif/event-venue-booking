@@ -80,3 +80,13 @@ class Booking(models.Model):
         Checks if payment is required for this booking based on its total price.
         """
         return self.total_price is not None and self.total_price > Decimal('0.00')
+
+    class Meta:
+        ordering = ['-booking_time']
+        indexes = [
+            models.Index(fields=['event', 'status']),
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['status']),
+            models.Index(fields=['booking_time']),
+            models.Index(fields=['payment_intent_id']),
+        ]

@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from payments.models import Payment # Import Payment model
 from django.db.models import Q, Sum # For complex queries and Sum
 from events.models import Event # Explicit import for Event model
+from django.db import transaction # Import transaction
 from rest_framework import serializers # For serializers.ValidationError
 import logging
 from django.conf import settings # Keep if used elsewhere, remove if only for stripe
@@ -128,44 +129,55 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         return base_queryset.filter(conditions).distinct().order_by('-booking_time')
 
+    @transaction.atomic
     def perform_create(self, serializer):
         """
         Automatically set the user for the booking to `request.user`.
         Calculates total_price, creates Payment record if needed, snapshots price.
-        Checks event capacity before creating the booking.
+        Checks event capacity before creating the booking using select_for_update for concurrency control.
         """
-        event = serializer.validated_data['event']
+        validated_event_from_serializer = serializer.validated_data['event']
         requested_tickets = serializer.validated_data['number_of_tickets']
 
-        # --- Capacity Check ---
-        effective_capacity = event.effective_capacity # This is a property on Event model
+        try:
+            # Lock the event row for the duration of this transaction
+            event = Event.objects.select_for_update().get(pk=validated_event_from_serializer.id)
+        except Event.DoesNotExist:
+            raise serializers.ValidationError({"event": "Event not found or has been deleted."})
 
-        # If effective_capacity is None, it means unlimited capacity (as per model property logic)
+        # Re-validate event status after locking, as it might have changed
+        if event.status not in [Event.EventStatus.UPCOMING, Event.EventStatus.ONGOING]:
+            raise serializers.ValidationError(
+                {'event': f"Bookings can only be made for 'upcoming' or 'ongoing' events. This event status is '{event.status}'."}
+            )
+
+        # --- Capacity Check (using locked event instance) ---
+        effective_capacity = event.effective_capacity
+
         if effective_capacity is not None: # Only check if capacity is defined
             if effective_capacity == 0: # Explicitly set to zero capacity
                  raise serializers.ValidationError(
                     {"detail": "This event cannot be booked as it has zero capacity."}
                 )
 
-            # Calculate current number of tickets for active bookings (Confirmed or Pending Payment)
             active_booking_statuses = [
                 Booking.BookingStatus.CONFIRMED,
                 Booking.BookingStatus.PENDING_PAYMENT
             ]
             current_active_tickets = Booking.objects.filter(
-                event=event,
+                event=event, # Use the locked event instance
                 status__in=active_booking_statuses
             ).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
 
             if requested_tickets > (effective_capacity - current_active_tickets):
                 remaining_capacity = effective_capacity - current_active_tickets
-                if remaining_capacity < 0: remaining_capacity = 0 # Ensure non-negative
+                if remaining_capacity < 0: remaining_capacity = 0
                 raise serializers.ValidationError(
                     {'detail': f"Booking exceeds event capacity. Only {remaining_capacity} tickets available considering confirmed and pending payment bookings."}
                 )
         # --- End Capacity Check ---
 
-        price_at_booking = event.ticket_price # Snapshot the event's current ticket price
+        price_at_booking = event.ticket_price # Snapshot from the locked event instance
 
         # Pass price_per_ticket_at_booking to serializer's save method
         booking = serializer.save(
@@ -225,10 +237,11 @@ class BookingViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Failed to send booking email for Booking ID {booking.id} within perform_create: {e}")
 
+    @transaction.atomic
     def perform_update(self, serializer):
         """
         Handle updates to a booking.
-        Checks event capacity if number_of_tickets is changed.
+        Checks event capacity if number_of_tickets is changed, using select_for_update.
         If number_of_tickets changes for a PENDING booking, update the associated Payment amount.
         """
         original_booking = self.get_object() # Get the booking instance before update
@@ -236,30 +249,39 @@ class BookingViewSet(viewsets.ModelViewSet):
         requested_new_number_of_tickets = serializer.validated_data.get('number_of_tickets', original_number_of_tickets)
 
         if requested_new_number_of_tickets != original_number_of_tickets:
-            event = original_booking.event # Event doesn't change during booking update
+            try:
+                # Lock the event row for the duration of this transaction
+                locked_event = Event.objects.select_for_update().get(pk=original_booking.event.id)
+            except Event.DoesNotExist:
+                raise serializers.ValidationError({"event": "Associated event not found or has been deleted."})
 
-            # --- Capacity Check for Update ---
-            effective_capacity = event.effective_capacity
+            # Re-validate event status after locking
+            if locked_event.status not in [Event.EventStatus.UPCOMING, Event.EventStatus.ONGOING]:
+                raise serializers.ValidationError(
+                    {'event': f"Bookings can only be modified for 'upcoming' or 'ongoing' events. This event status is '{locked_event.status}'."}
+                )
+
+            # --- Capacity Check for Update (using locked_event) ---
+            effective_capacity = locked_event.effective_capacity
             if effective_capacity is not None: # Only check if capacity is defined
                 if effective_capacity == 0:
-                    if requested_new_number_of_tickets > 0 : # Allow reducing to 0, but not increasing.
+                    if requested_new_number_of_tickets > 0:
                         raise serializers.ValidationError(
                             {"detail": "This event has zero capacity; tickets cannot be modified to be greater than 0."}
                         )
 
-                # Calculate current number of active tickets for the event, excluding the current booking being updated
                 active_booking_statuses = [
                     Booking.BookingStatus.CONFIRMED,
                     Booking.BookingStatus.PENDING_PAYMENT
                 ]
                 current_active_tickets_others = Booking.objects.filter(
-                    event=event,
+                    event=locked_event, # Use locked event
                     status__in=active_booking_statuses
                 ).exclude(pk=original_booking.pk).aggregate(total_tickets=Sum('number_of_tickets'))['total_tickets'] or 0
 
                 if current_active_tickets_others + requested_new_number_of_tickets > effective_capacity:
                     available_tickets = effective_capacity - current_active_tickets_others
-                    if available_tickets < 0: available_tickets = 0 # Ensure non-negative
+                    if available_tickets < 0: available_tickets = 0
                     raise serializers.ValidationError(
                         {"detail": f"Update exceeds event capacity. Only {available_tickets} tickets available for increase, considering other confirmed and pending payment bookings."}
                     )
@@ -326,7 +348,7 @@ class BookingViewSet(viewsets.ModelViewSet):
                 body_text_template_name='emails/booking_cancelled_body.txt'
             )
         except Exception as e:
-            print(f"Failed to send booking cancellation email for Booking ID {booking.id}: {e}")
+            logger.error(f"Failed to send booking cancellation email for Booking ID {booking.id}: {e}")
 
         serializer = self.get_serializer(booking)
         return Response(serializer.data)

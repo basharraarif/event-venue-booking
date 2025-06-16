@@ -27,3 +27,13 @@ class Venue(models.Model):
         ordering = ['name']
         verbose_name = 'Venue'
         verbose_name_plural = 'Venues'
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['address']), # Consider full-text search for address if needed
+            models.Index(fields=['capacity']),
+            models.Index(fields=['is_available']),
+            models.Index(fields=['owner']),
+            # For JSONField 'amenities' on PostgreSQL, a GIN index is good for contains lookups:
+            # from django.contrib.postgres.indexes import GinIndex
+            # GinIndex(fields=['amenities'], name='venue_amenities_gin_idx'),
+        ]

@@ -86,6 +86,15 @@ class Event(models.Model):
         if self.end_time <= self.start_time:
             raise ValidationError({'end_time': 'End time must be after start time.'})
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['status']),
+            models.Index(fields=['start_time', 'end_time']),
+            models.Index(fields=['venue', 'start_time']),
+            models.Index(fields=['organizer']),
+        ]
+
     # save method could also be overridden if needed, e.g., to call clean()
     # def save(self, *args, **kwargs):
     #     self.full_clean() # Not always recommended to call full_clean in save

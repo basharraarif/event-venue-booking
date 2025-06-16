@@ -29,7 +29,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Assuming authService.getCurrentUser() exists and fetches user details including roles
-import authService from '@/services/authService'; // Import your authService
+import * as authService from '@/services/authService'; // Import your authService using namespace
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
