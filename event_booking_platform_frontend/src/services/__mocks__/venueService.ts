@@ -1,11 +1,14 @@
 // src/services/__mocks__/venueService.ts
 
 // Mock implementation for getVenues
-export const getVenues = jest.fn(() => Promise.resolve({ results: [], count: 0, next: null, previous: null }));
+export const getVenues = jest.fn(() =>
+  Promise.resolve({ results: [], count: 0, next: null, previous: null })
+);
 
 // Mock implementation for getVenueById
 export const getVenueById = jest.fn((id: string) => {
-  if (id === "1" || parseInt(id, 10) === 1) { // Allow string or number for ID in mock
+  if (id === '1' || parseInt(id, 10) === 1) {
+    // Allow string or number for ID in mock
     return Promise.resolve({
       id: 1,
       name: 'Mocked Venue Detail',

@@ -32,12 +32,16 @@ export interface AuthResponse {
   user?: User; // User details might be returned on login/registration by some configs
 }
 
-
 // API Functions
 
-export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
+export const login = async (
+  credentials: LoginCredentials
+): Promise<AuthResponse> => {
   try {
-    const response = await axiosInstance.post<AuthResponse>('/auth/login/', credentials); // Use axiosInstance
+    const response = await axiosInstance.post<AuthResponse>(
+      '/auth/login/',
+      credentials
+    ); // Use axiosInstance
     return response.data;
   } catch (error) {
     console.error('Login failed:', error);
@@ -46,14 +50,23 @@ export const login = async (credentials: LoginCredentials): Promise<AuthResponse
   }
 };
 
-export const register = async (data: RegistrationData): Promise<AuthResponse | any> => {
+export const register = async (
+  data: RegistrationData
+): Promise<AuthResponse | any> => {
   // Backend might return user details and token, or just a success message
   try {
     // dj-rest-auth registration usually requires password1 and password2
-    const payload = { ...data, password1: data.password, password2: data.password2 || data.password };
+    const payload = {
+      ...data,
+      password1: data.password,
+      password2: data.password2 || data.password,
+    };
     // delete payload.password2; // dj-rest-auth.registration expects password1 and password2
 
-    const response = await axiosInstance.post<AuthResponse | any>('/auth/registration/', payload); // Use axiosInstance
+    const response = await axiosInstance.post<AuthResponse | any>(
+      '/auth/registration/',
+      payload
+    ); // Use axiosInstance
     return response.data;
   } catch (error) {
     console.error('Registration failed:', error);
@@ -76,12 +89,13 @@ export const logout = async (token: string | null): Promise<void> => {
   }
 };
 
-export const getCurrentUser = async (): Promise<User> => { // Token removed from args, assumed by interceptor
+export const getCurrentUser = async (): Promise<User> => {
+  // Token removed from args, assumed by interceptor
   try {
     const response = await axiosInstance.get<User>('/auth/user/'); // Token from interceptor
     // Map pk to id if your frontend User interface expects 'id' primarily
     if (response.data && response.data.pk && !response.data.id) {
-        response.data.id = response.data.pk;
+      response.data.id = response.data.pk;
     }
     return response.data;
   } catch (error) {

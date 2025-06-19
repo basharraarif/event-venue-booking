@@ -1,8 +1,8 @@
 import React from 'react';
 jest.mock('next/link', () => {
-  return ({children, href}: {children: React.ReactNode, href: string}) => {
+  return ({ children, href }: { children: React.ReactNode; href: string }) => {
     return <a href={href}>{children}</a>;
-  }
+  };
 });
 // import React from 'react'; // Removed duplicate import
 import { render, screen, waitFor } from '@testing-library/react';
@@ -39,13 +39,30 @@ jest.mock('@/services/bookingService'); // Corrected mock path
 jest.mock('@/contexts/AuthContext');
 jest.mock('@stripe/react-stripe-js', () => ({
   ...jest.requireActual('@stripe/react-stripe-js'),
-  Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
+  Elements: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="stripe-elements">{children}</div>
+  ),
   // PaymentElement might be part of CheckoutForm, which will be tested separately or mocked if needed here
 }));
-jest.mock('@/components/payments/CheckoutForm', () => () => <div data-testid="checkout-form-mock">Mocked Checkout Form</div>);
-jest.mock('@/components/common/LoadingSpinner', () => ({ message }: { message: string }) => <div data-testid="loading-spinner">{message}</div>);
-jest.mock('@/components/common/AlertMessage', () => ({ message, type }: { message: string, type: string }) => <div data-testid="alert-message" data-type={type}>{message}</div>);
-
+jest.mock('@/components/payments/CheckoutForm', () => () => (
+  <div data-testid="checkout-form-mock">Mocked Checkout Form</div>
+));
+jest.mock(
+  '@/components/common/LoadingSpinner',
+  () =>
+    ({ message }: { message: string }) => (
+      <div data-testid="loading-spinner">{message}</div>
+    )
+);
+jest.mock(
+  '@/components/common/AlertMessage',
+  () =>
+    ({ message, type }: { message: string; type: string }) => (
+      <div data-testid="alert-message" data-type={type}>
+        {message}
+      </div>
+    )
+);
 
 const mockUseParams = useParams as jest.Mock;
 const mockPaymentService = PaymentService as jest.Mocked<typeof PaymentService>;
@@ -56,7 +73,11 @@ describe('CheckoutPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseParams.mockReturnValue({ bookingId: 'booking123' });
-    mockUseAuth.mockReturnValue({ user: { id: 'user123' }, isAuthenticated: true, isLoading: false });
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user123' },
+      isAuthenticated: true,
+      isLoading: false,
+    });
 
     // Default successful mocks
     mockBookingService.getBookingById.mockResolvedValue({
@@ -74,9 +95,15 @@ describe('CheckoutPage', () => {
   });
 
   it('renders loading state initially', () => {
-    mockUseAuth.mockReturnValueOnce({ user: null, isAuthenticated: false, isLoading: true }); // Auth loading
+    mockUseAuth.mockReturnValueOnce({
+      user: null,
+      isAuthenticated: false,
+      isLoading: true,
+    }); // Auth loading
     render(<CheckoutPage />);
-    expect(screen.getByTestId('loading-spinner')).toHaveTextContent('Loading checkout...');
+    expect(screen.getByTestId('loading-spinner')).toHaveTextContent(
+      'Loading checkout...'
+    );
   });
 
   it('fetches booking and payment intent, then renders Elements provider and CheckoutForm', async () => {
@@ -86,10 +113,14 @@ describe('CheckoutPage', () => {
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(mockBookingService.getBookingById).toHaveBeenCalledWith('booking123');
+      expect(mockBookingService.getBookingById).toHaveBeenCalledWith(
+        'booking123'
+      );
     });
     await waitFor(() => {
-      expect(mockPaymentService.createPaymentIntent).toHaveBeenCalledWith({ booking_id: 'booking123' });
+      expect(mockPaymentService.createPaymentIntent).toHaveBeenCalledWith({
+        booking_id: 'booking123',
+      });
     });
 
     await waitFor(() => {
@@ -102,10 +133,16 @@ describe('CheckoutPage', () => {
   });
 
   it('shows error if user is not authenticated', async () => {
-    mockUseAuth.mockReturnValueOnce({ user: null, isAuthenticated: false, isLoading: false });
+    mockUseAuth.mockReturnValueOnce({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('Please log in to make a payment.');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        'Please log in to make a payment.'
+      );
     });
   });
 
@@ -113,7 +150,9 @@ describe('CheckoutPage', () => {
     mockUseParams.mockReturnValueOnce({ bookingId: null }); // Simulate missing bookingId
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('Booking ID is missing.');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        'Booking ID is missing.'
+      );
     });
   });
 
@@ -128,7 +167,9 @@ describe('CheckoutPage', () => {
     });
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent("This booking is already confirmed and cannot be paid for. Payment can only be made for 'pending_payment' bookings.");
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        "This booking is already confirmed and cannot be paid for. Payment can only be made for 'pending_payment' bookings."
+      );
     });
   });
 
@@ -140,17 +181,22 @@ describe('CheckoutPage', () => {
     });
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('Failed to init gateway');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        'Failed to init gateway'
+      );
     });
   });
 
   it('shows error if bookingService.getBookingById fails', async () => {
-    mockBookingService.getBookingById.mockRejectedValueOnce(new Error('Failed to fetch booking'));
+    mockBookingService.getBookingById.mockRejectedValueOnce(
+      new Error('Failed to fetch booking')
+    );
     render(<CheckoutPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent(/An unexpected error occurred/);
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        /An unexpected error occurred/
+      );
       // Error message might be generic from the catch block
     });
   });
-
 });

@@ -20,7 +20,6 @@ export interface NestedUser {
 // For now, assuming array of strings (names) as per EventSerializer in backend
 export type CategoryType = string | { id: string; name: string };
 
-
 export interface Event {
   id: string; // Assuming UUID
   name: string;
@@ -34,7 +33,7 @@ export interface Event {
   end_time: string;
   status: 'upcoming' | 'ongoing' | 'past' | 'cancelled';
   ticket_price: string;
-  max_capacity?: number | null;      // From backend Event.max_capacity
+  max_capacity?: number | null; // From backend Event.max_capacity
   active_tickets_count?: number; // From backend (e.g., SerializerMethodField)
   // venue_capacity is effectively venue_details.capacity
   created_at?: string;
@@ -62,30 +61,46 @@ export interface GetEventsParams {
 const eventService = {
   getEvents: async (params?: GetEventsParams): Promise<Event[]> => {
     try {
-      const response = await axiosInstance.get<Event[]>('/events-management/events/', { params });
+      const response = await axiosInstance.get<Event[]>(
+        '/events-management/events/',
+        { params }
+      );
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching events:', error.response?.data || error.message);
+      console.error(
+        'Error fetching events:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
 
   getEventById: async (id: string): Promise<Event> => {
     try {
-      const response = await axiosInstance.get<Event>(`/events-management/events/${id}/`);
+      const response = await axiosInstance.get<Event>(
+        `/events-management/events/${id}/`
+      );
       return response.data;
     } catch (error: any) {
-      console.error(`Error fetching event ${id}:`, error.response?.data || error.message);
+      console.error(
+        `Error fetching event ${id}:`,
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
 
   getCategories: async (): Promise<Category[]> => {
     try {
-      const response = await axiosInstance.get<Category[]>('/events-management/categories/');
+      const response = await axiosInstance.get<Category[]>(
+        '/events-management/categories/'
+      );
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching categories:', error.response?.data || error.message);
+      console.error(
+        'Error fetching categories:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   },

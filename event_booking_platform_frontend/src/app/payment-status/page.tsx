@@ -50,6 +50,13 @@ const PaymentStatusPage = () => {
     const retrieveWithStripeJS = async () => {
         if (stripe && paymentIntentClientSecret) { // Prioritize Stripe.js if client_secret is available
             try {
+                // Ensure paymentIntentClientSecret is not null before calling retrievePaymentIntent
+                if (paymentIntentClientSecret === null) {
+                    setDisplayMessage('Payment intent client secret is missing.');
+                    setIsError(true);
+                    setLoading(false);
+                    return;
+                }
                 const { paymentIntent: pi } = await stripe.retrievePaymentIntent(paymentIntentClientSecret);
                 if (pi) {
                     setPaymentStatus(pi.status);
@@ -111,7 +118,7 @@ const PaymentStatusPage = () => {
 
     fetchStatus();
 
-  }, [stripe, paymentIntentClientSecret, localPaymentId, bookingId]; // Removed router from deps as it's not used for navigation here
+  }, [stripe, paymentIntentClientSecret, localPaymentId, bookingId])
 
 
   if (loading) {
@@ -140,7 +147,7 @@ const PaymentStatusPage = () => {
       </div>
     </div>
   );
-};
+}
 
 // Wrap with Elements provider because useStripe() is used within PaymentStatusPage
 const PaymentStatusPageWrapper = () => {

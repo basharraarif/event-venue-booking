@@ -26,7 +26,8 @@ export interface Payment {
 export interface Booking {
   id: string;
   event: string; // Assuming event ID, or could be a nested EventDetails object
-  event_details?: { // Optional: if your serializer nests this
+  event_details?: {
+    // Optional: if your serializer nests this
     name: string;
     ticket_price: string;
   };
@@ -40,18 +41,28 @@ export interface Booking {
   // any other fields needed by the frontend
 }
 
-
 const PaymentService = {
-  createPaymentIntent: async (payload: PaymentIntentPayload): Promise<PaymentIntentResponse> => {
+  createPaymentIntent: async (
+    payload: PaymentIntentPayload
+  ): Promise<PaymentIntentResponse> => {
     try {
-      const response = await axiosInstance.post<PaymentIntentResponse>('/payments/create-payment-intent/', payload);
+      const response = await axiosInstance.post<PaymentIntentResponse>(
+        '/payments/create-payment-intent/',
+        payload
+      );
       return response.data;
     } catch (error: any) {
-      console.error('Error creating payment intent:', error.response?.data || error.message);
+      console.error(
+        'Error creating payment intent:',
+        error.response?.data || error.message
+      );
       return {
         client_secret: '',
         payment_id: '',
-        error: error.response?.data?.detail || error.response?.data?.error || 'Failed to create payment intent.'
+        error:
+          error.response?.data?.detail ||
+          error.response?.data?.error ||
+          'Failed to create payment intent.',
       };
     }
   },
@@ -61,10 +72,15 @@ const PaymentService = {
       // The backend URL for PaymentViewSet (ReadOnly) is likely /api/payments/view/{payment_id}/
       // Adjust if your PaymentViewSet is registered differently.
       // Based on previous backend setup, it was registered under /api/payments/view/
-      const response = await axiosInstance.get<Payment>(`/payments/view/${paymentId}/`);
+      const response = await axiosInstance.get<Payment>(
+        `/payments/view/${paymentId}/`
+      );
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching payment details:', error.response?.data || error.message);
+      console.error(
+        'Error fetching payment details:',
+        error.response?.data || error.message
+      );
       // Consider how you want to propagate errors. Throwing allows components to catch.
       // Or return an object with an error field. For now, re-throwing.
       throw error;
@@ -75,10 +91,15 @@ const PaymentService = {
   // Note: A dedicated bookingService.ts might be a more common place for this.
   getBookingDetails: async (bookingId: string): Promise<Booking> => {
     try {
-      const response = await axiosInstance.get<Booking>(`/bookings/${bookingId}/`);
+      const response = await axiosInstance.get<Booking>(
+        `/bookings/${bookingId}/`
+      );
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching booking details:', error.response?.data || error.message);
+      console.error(
+        'Error fetching booking details:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
@@ -88,7 +109,8 @@ const PaymentService = {
     clientSecret: string,
     cardElement: any, // The Stripe CardElement
     billingDetails: { name?: string; email?: string; address?: any } // Stripe billing_details
-  ): Promise<stripe.PaymentIntentResponse> => { // Use Stripe's PaymentIntentResponse type
+  ): Promise<stripe.PaymentIntentResponse> => {
+    // Use Stripe's PaymentIntentResponse type
     if (!stripe || !cardElement) {
       console.error('Stripe.js or CardElement not initialized.');
       return Promise.reject('Stripe.js or CardElement not initialized.');
@@ -114,12 +136,14 @@ const PaymentService = {
       // paymentIntent contains the PaymentIntent object after confirmation
       // https://stripe.com/docs/js/payment_intents/confirm_card_payment#confirm_card_payment_response-payment_intent
       return Promise.resolve({ paymentIntent }); // Resolve with the paymentIntent object
-
     } catch (error) {
-      console.error('An unexpected error occurred during card payment confirmation:', error);
+      console.error(
+        'An unexpected error occurred during card payment confirmation:',
+        error
+      );
       return Promise.reject(error);
     }
-  }
+  },
 };
 
 export default PaymentService;

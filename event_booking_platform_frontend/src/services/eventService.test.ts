@@ -17,19 +17,25 @@ describe('eventService', () => {
 
       const result = await eventService.getEvents(params);
 
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith('/events-management/events/', { params });
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        '/events-management/events/',
+        { params }
+      );
       expect(result).toEqual(mockEvents);
     });
 
     it('should call GET /events-management/events/ without params if none provided', async () => {
-        const mockEvents = [{ id: 'e2', name: 'Event 2' }];
-        mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockEvents });
+      const mockEvents = [{ id: 'e2', name: 'Event 2' }];
+      mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockEvents });
 
-        const result = await eventService.getEvents();
+      const result = await eventService.getEvents();
 
-        expect(mockedAxiosInstance.get).toHaveBeenCalledWith('/events-management/events/', { params: undefined });
-        expect(result).toEqual(mockEvents);
-      });
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        '/events-management/events/',
+        { params: undefined }
+      );
+      expect(result).toEqual(mockEvents);
+    });
 
     it('should throw error if API call fails for getEvents', async () => {
       mockedAxiosInstance.get.mockRejectedValueOnce(new Error('Network Error'));
@@ -45,14 +51,18 @@ describe('eventService', () => {
 
       const result = await eventService.getEventById(eventId);
 
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/events-management/events/${eventId}/`);
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        `/events-management/events/${eventId}/`
+      );
       expect(result).toEqual(mockEvent);
     });
 
     it('should throw error if API call fails for getEventById', async () => {
       const eventId = 'e123';
       mockedAxiosInstance.get.mockRejectedValueOnce(new Error('Not Found'));
-      await expect(eventService.getEventById(eventId)).rejects.toThrow('Not Found');
+      await expect(eventService.getEventById(eventId)).rejects.toThrow(
+        'Not Found'
+      );
     });
   });
 
@@ -63,13 +73,19 @@ describe('eventService', () => {
 
       const result = await eventService.getCategories();
 
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith('/events-management/categories/');
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        '/events-management/categories/'
+      );
       expect(result).toEqual(mockCategories);
     });
 
     it('should throw error if API call fails for getCategories', async () => {
-      mockedAxiosInstance.get.mockRejectedValueOnce(new Error('Categories Fetch Error'));
-      await expect(eventService.getCategories()).rejects.toThrow('Categories Fetch Error');
+      mockedAxiosInstance.get.mockRejectedValueOnce(
+        new Error('Categories Fetch Error')
+      );
+      await expect(eventService.getCategories()).rejects.toThrow(
+        'Categories Fetch Error'
+      );
     });
   });
 });

@@ -19,7 +19,10 @@ describe('PaymentService', () => {
 
       const result = await PaymentService.createPaymentIntent(mockPayload);
 
-      expect(mockedAxiosInstance.post).toHaveBeenCalledWith('/payments/create-payment-intent/', mockPayload);
+      expect(mockedAxiosInstance.post).toHaveBeenCalledWith(
+        '/payments/create-payment-intent/',
+        mockPayload
+      );
       expect(result).toEqual(mockResponse);
     });
 
@@ -31,32 +34,48 @@ describe('PaymentService', () => {
 
       const result = await PaymentService.createPaymentIntent(mockPayload);
 
-      expect(mockedAxiosInstance.post).toHaveBeenCalledWith('/payments/create-payment-intent/', mockPayload);
-      expect(result).toEqual(expect.objectContaining({
-        error: 'Backend error'
-      }));
+      expect(mockedAxiosInstance.post).toHaveBeenCalledWith(
+        '/payments/create-payment-intent/',
+        mockPayload
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          error: 'Backend error',
+        })
+      );
     });
   });
 
   describe('getPaymentDetails', () => {
     it('should call the correct endpoint and return data on success', async () => {
-        const paymentId = 'test-payment-id';
-        const mockPaymentData = { id: paymentId, status: 'succeeded', amount: "100.00", currency: "USD" }; // More complete mock
-        mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockPaymentData });
+      const paymentId = 'test-payment-id';
+      const mockPaymentData = {
+        id: paymentId,
+        status: 'succeeded',
+        amount: '100.00',
+        currency: 'USD',
+      }; // More complete mock
+      mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockPaymentData });
 
-        const result = await PaymentService.getPaymentDetails(paymentId);
+      const result = await PaymentService.getPaymentDetails(paymentId);
 
-        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/view/${paymentId}/`); // Updated URL
-        expect(result).toEqual(mockPaymentData);
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        `/payments/view/${paymentId}/`
+      ); // Updated URL
+      expect(result).toEqual(mockPaymentData);
     });
 
     it('should throw error on failure for getPaymentDetails', async () => {
-        const paymentId = 'test-payment-id';
-        const mockError = new Error('Network Error');
-        mockedAxiosInstance.get.mockRejectedValueOnce(mockError);
+      const paymentId = 'test-payment-id';
+      const mockError = new Error('Network Error');
+      mockedAxiosInstance.get.mockRejectedValueOnce(mockError);
 
-        await expect(PaymentService.getPaymentDetails(paymentId)).rejects.toThrow('Network Error');
-        expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/payments/view/${paymentId}/`); // Updated URL
+      await expect(PaymentService.getPaymentDetails(paymentId)).rejects.toThrow(
+        'Network Error'
+      );
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        `/payments/view/${paymentId}/`
+      ); // Updated URL
     });
   });
 
@@ -68,13 +87,15 @@ describe('PaymentService', () => {
         event_details: { name: 'Test Event', ticket_price: '10.00' },
         number_of_tickets: 2,
         total_price: '20.00',
-        status: 'pending_payment'
+        status: 'pending_payment',
       };
       mockedAxiosInstance.get.mockResolvedValueOnce({ data: mockBookingData });
 
       const result = await PaymentService.getBookingDetails(bookingId);
 
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/bookings/${bookingId}/`);
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        `/bookings/${bookingId}/`
+      );
       expect(result).toEqual(mockBookingData);
     });
 
@@ -83,8 +104,12 @@ describe('PaymentService', () => {
       const mockError = new Error('Fetch Booking Error');
       mockedAxiosInstance.get.mockRejectedValueOnce(mockError);
 
-      await expect(PaymentService.getBookingDetails(bookingId)).rejects.toThrow('Fetch Booking Error');
-      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(`/bookings/${bookingId}/`);
+      await expect(PaymentService.getBookingDetails(bookingId)).rejects.toThrow(
+        'Fetch Booking Error'
+      );
+      expect(mockedAxiosInstance.get).toHaveBeenCalledWith(
+        `/bookings/${bookingId}/`
+      );
     });
   });
 
@@ -102,7 +127,9 @@ describe('PaymentService', () => {
 
     it('should call stripe.confirmCardPayment with correct parameters and resolve on success', async () => {
       const mockPaymentIntent = { id: 'pi_test', status: 'succeeded' };
-      mockStripe.confirmCardPayment.mockResolvedValueOnce({ paymentIntent: mockPaymentIntent });
+      mockStripe.confirmCardPayment.mockResolvedValueOnce({
+        paymentIntent: mockPaymentIntent,
+      });
 
       const result = await PaymentService.confirmCardPayment(
         mockStripe,
@@ -125,7 +152,12 @@ describe('PaymentService', () => {
       mockStripe.confirmCardPayment.mockResolvedValueOnce({ error: mockError }); // Stripe API returns error in a resolved promise with an error key
 
       await expect(
-        PaymentService.confirmCardPayment(mockStripe, clientSecret, mockCardElement, billingDetails)
+        PaymentService.confirmCardPayment(
+          mockStripe,
+          clientSecret,
+          mockCardElement,
+          billingDetails
+        )
       ).rejects.toEqual(mockError);
 
       expect(mockStripe.confirmCardPayment).toHaveBeenCalledWith(clientSecret, {
@@ -138,13 +170,23 @@ describe('PaymentService', () => {
 
     it('should reject if stripe instance is not provided', async () => {
       await expect(
-        PaymentService.confirmCardPayment(null, clientSecret, mockCardElement, billingDetails)
+        PaymentService.confirmCardPayment(
+          null,
+          clientSecret,
+          mockCardElement,
+          billingDetails
+        )
       ).rejects.toEqual('Stripe.js or CardElement not initialized.');
     });
 
     it('should reject if cardElement is not provided', async () => {
       await expect(
-        PaymentService.confirmCardPayment(mockStripe, clientSecret, null, billingDetails)
+        PaymentService.confirmCardPayment(
+          mockStripe,
+          clientSecret,
+          null,
+          billingDetails
+        )
       ).rejects.toEqual('Stripe.js or CardElement not initialized.');
     });
 
@@ -153,7 +195,12 @@ describe('PaymentService', () => {
       mockStripe.confirmCardPayment.mockRejectedValueOnce(mockException);
 
       await expect(
-        PaymentService.confirmCardPayment(mockStripe, clientSecret, mockCardElement, billingDetails)
+        PaymentService.confirmCardPayment(
+          mockStripe,
+          clientSecret,
+          mockCardElement,
+          billingDetails
+        )
       ).rejects.toEqual(mockException);
     });
   });

@@ -5,7 +5,8 @@
 /* Global body styles */
 body {
   @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-200 transition-colors duration-300;
-  font-family: 'Inter', sans-serif; /* Assuming Inter is imported in layout.tsx */
+  font-family:
+    'Inter', sans-serif; /* Assuming Inter is imported in layout.tsx */
 }
 
 /* Define base styles for form inputs and buttons using @layer components */

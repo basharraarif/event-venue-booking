@@ -27,25 +27,30 @@ const EditEventPageInternal: React.FC = () => {
     if (authIsLoading) return;
 
     if (!user) {
-      setError("Authentication required to edit events.");
+      setError('Authentication required to edit events.');
       setIsLoading(false);
       return;
     }
 
     if (eventId && user) {
       setIsLoading(true);
-      eventService.getEventById(eventId)
-        .then(fetchedEvent => {
+      eventService
+        .getEventById(eventId)
+        .then((fetchedEvent) => {
           setEvent(fetchedEvent);
           // Authorization check: Admin OR (Event Organizer AND owner)
-          if (hasRole(ROLE_ADMIN) || (hasRole(ROLE_EVENT_ORGANIZER) && fetchedEvent.organizer === user.id)) {
+          if (
+            hasRole(ROLE_ADMIN) ||
+            (hasRole(ROLE_EVENT_ORGANIZER) &&
+              fetchedEvent.organizer === user.id)
+          ) {
             setIsAuthorized(true);
           } else {
-            setError("You are not authorized to edit this event.");
+            setError('You are not authorized to edit this event.');
             setIsAuthorized(false);
           }
         })
-        .catch(err => {
+        .catch((err) => {
           console.error(`Failed to fetch event ${eventId}:`, err);
           setError('Failed to load event details for editing.');
           setIsAuthorized(false);
@@ -54,7 +59,7 @@ const EditEventPageInternal: React.FC = () => {
           setIsLoading(false);
         });
     } else if (!eventId) {
-      setError("Event ID is missing.");
+      setError('Event ID is missing.');
       setIsLoading(false);
     }
   }, [eventId, user, authIsLoading, hasRole]);
@@ -67,7 +72,10 @@ const EditEventPageInternal: React.FC = () => {
     return (
       <div className="container mx-auto p-4 text-center">
         <AlertMessage message={error} type="error" />
-        <button onClick={() => router.back()} className="mt-4 btn btn-secondary">
+        <button
+          onClick={() => router.back()}
+          className="mt-4 btn btn-secondary"
+        >
           Go Back
         </button>
       </div>
@@ -77,8 +85,18 @@ const EditEventPageInternal: React.FC = () => {
   if (!event || !isAuthorized) {
     return (
       <div className="container mx-auto p-4 text-center">
-        <AlertMessage message={!event ? "Event not found." : "You are not authorized to edit this event."} type="error" />
-         <button onClick={() => router.back()} className="mt-4 btn btn-secondary">
+        <AlertMessage
+          message={
+            !event
+              ? 'Event not found.'
+              : 'You are not authorized to edit this event.'
+          }
+          type="error"
+        />
+        <button
+          onClick={() => router.back()}
+          className="mt-4 btn btn-secondary"
+        >
           Go Back
         </button>
       </div>
@@ -88,11 +106,15 @@ const EditEventPageInternal: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Edit Event: {event.name}</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Edit Event: {event.name}
+        </h1>
       </header>
       {/* Placeholder for EventForm component */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <p className="text-gray-700 dark:text-gray-300">Event editing form will be here.</p>
+        <p className="text-gray-700 dark:text-gray-300">
+          Event editing form will be here.
+        </p>
         <p className="mt-2">Event ID: {event.id}</p>
         <p className="mt-2">Current Organizer ID: {event.organizer}</p>
         {/* <EventForm eventData={event} onSubmit={handleUpdateEvent} /> */}
@@ -104,7 +126,11 @@ const EditEventPageInternal: React.FC = () => {
 const ProtectedEditEventPage = () => {
   return (
     // Outer protection for role, inner component handles ownership
-    <RoleRequired requiredRoles={[ROLE_ADMIN, ROLE_EVENT_ORGANIZER]} showError={true} fallbackUrl="/dashboard">
+    <RoleRequired
+      requiredRoles={[ROLE_ADMIN, ROLE_EVENT_ORGANIZER]}
+      showError={true}
+      fallbackUrl="/dashboard"
+    >
       <EditEventPageInternal />
     </RoleRequired>
   );

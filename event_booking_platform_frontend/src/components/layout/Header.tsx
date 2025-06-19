@@ -11,7 +11,6 @@ const ROLE_EVENT_ORGANIZER = 'EVENT_ORGANIZER';
 const ROLE_VENUE_MANAGER = 'VENUE_MANAGER';
 const ROLE_CUSTOMER = 'CUSTOMER';
 
-
 const Header: React.FC = () => {
   const { isAuthenticated, user, logout, hasRole, isLoading } = useAuth();
   const router = useRouter();
@@ -46,13 +45,15 @@ const Header: React.FC = () => {
   //   );
   // }
 
-
   return (
     <header className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link href="/" className="text-2xl font-extrabold hover:text-indigo-200 transition-colors">
+            <Link
+              href="/"
+              className="text-2xl font-extrabold hover:text-indigo-200 transition-colors"
+            >
               EventPilot
             </Link>
           </div>
@@ -60,28 +61,54 @@ const Header: React.FC = () => {
           {/* Desktop Navigation */}
           {!isLoading && (
             <nav className="hidden md:flex space-x-4">
-              <Link href="/events" className="nav-link">Events</Link>
-              <Link href="/venues" className="nav-link">Venues</Link>
+              <Link href="/events" className="nav-link">
+                Events
+              </Link>
+              <Link href="/venues" className="nav-link">
+                Venues
+              </Link>
               {isAuthenticated && hasRole(ROLE_EVENT_ORGANIZER) && (
-                <Link href="/dashboard/organizer/events/create" className="nav-link">Create Event</Link>
+                <Link
+                  href="/dashboard/organizer/events/create"
+                  className="nav-link"
+                >
+                  Create Event
+                </Link>
               )}
               {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
-                <Link href="/dashboard/manager/venues/create" className="nav-link">Create Venue</Link>
+                <Link
+                  href="/dashboard/manager/venues/create"
+                  className="nav-link"
+                >
+                  Create Venue
+                </Link>
               )}
-               {isAuthenticated && hasRole(ROLE_ADMIN) && (
-                <Link href="/admin/dashboard" className="nav-link">Admin Panel</Link>
+              {isAuthenticated && hasRole(ROLE_ADMIN) && (
+                <Link href="/admin/dashboard" className="nav-link">
+                  Admin Panel
+                </Link>
               )}
-
 
               {isAuthenticated ? (
                 <>
-                  <Link href="/dashboard" className="nav-link">Dashboard</Link>
-                  <button onClick={handleLogout} className="nav-link-button">Logout ({user?.username})</button>
+                  <Link href="/dashboard" className="nav-link">
+                    Dashboard
+                  </Link>
+                  <button onClick={handleLogout} className="nav-link-button">
+                    Logout ({user?.username})
+                  </button>
                 </>
               ) : (
                 <>
-                  <Link href="/login" className="nav-link">Login</Link>
-                  <Link href="/register" className="btn btn-primary-inverted ml-2">Sign Up</Link>
+                  <Link href="/login" className="nav-link">
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="btn btn-primary-inverted ml-2"
+                  >
+                    Sign Up
+                  </Link>
                 </>
               )}
             </nav>
@@ -90,12 +117,30 @@ const Header: React.FC = () => {
           {/* Mobile Menu Button */}
           {!isLoading && (
             <div className="md:hidden">
-              <button onClick={toggleMobileMenu} className="text-white hover:text-indigo-200 focus:outline-none">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button
+                onClick={toggleMobileMenu}
+                className="text-white hover:text-indigo-200 focus:outline-none"
+              >
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
                   {isMobileMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16m-7 6h7"
+                    />
                   )}
                 </svg>
               </button>
@@ -108,27 +153,83 @@ const Header: React.FC = () => {
       {isMobileMenuOpen && !isLoading && (
         <div className="md:hidden bg-indigo-700">
           <nav className="px-2 pt-2 pb-4 space-y-1 sm:px-3">
-            <Link href="/events" className="mobile-nav-link" onClick={toggleMobileMenu}>Events</Link>
-            <Link href="/venues" className="mobile-nav-link" onClick={toggleMobileMenu}>Venues</Link>
+            <Link
+              href="/events"
+              className="mobile-nav-link"
+              onClick={toggleMobileMenu}
+            >
+              Events
+            </Link>
+            <Link
+              href="/venues"
+              className="mobile-nav-link"
+              onClick={toggleMobileMenu}
+            >
+              Venues
+            </Link>
             {isAuthenticated && hasRole(ROLE_EVENT_ORGANIZER) && (
-              <Link href="/dashboard/organizer/events/create" className="mobile-nav-link" onClick={toggleMobileMenu}>Create Event</Link>
+              <Link
+                href="/dashboard/organizer/events/create"
+                className="mobile-nav-link"
+                onClick={toggleMobileMenu}
+              >
+                Create Event
+              </Link>
             )}
             {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
-              <Link href="/dashboard/manager/venues/create" className="mobile-nav-link" onClick={toggleMobileMenu}>Create Venue</Link>
+              <Link
+                href="/dashboard/manager/venues/create"
+                className="mobile-nav-link"
+                onClick={toggleMobileMenu}
+              >
+                Create Venue
+              </Link>
             )}
             {isAuthenticated && hasRole(ROLE_ADMIN) && (
-              <Link href="/admin/dashboard" className="mobile-nav-link" onClick={toggleMobileMenu}>Admin Panel</Link>
+              <Link
+                href="/admin/dashboard"
+                className="mobile-nav-link"
+                onClick={toggleMobileMenu}
+              >
+                Admin Panel
+              </Link>
             )}
 
             {isAuthenticated ? (
               <>
-                <Link href="/dashboard" className="mobile-nav-link" onClick={toggleMobileMenu}>Dashboard</Link>
-                <button onClick={() => { handleLogout(); toggleMobileMenu(); }} className="mobile-nav-link-button w-full text-left">Logout ({user?.username})</button>
+                <Link
+                  href="/dashboard"
+                  className="mobile-nav-link"
+                  onClick={toggleMobileMenu}
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    toggleMobileMenu();
+                  }}
+                  className="mobile-nav-link-button w-full text-left"
+                >
+                  Logout ({user?.username})
+                </button>
               </>
             ) : (
               <>
-                <Link href="/login" className="mobile-nav-link" onClick={toggleMobileMenu}>Login</Link>
-                <Link href="/register" className="block w-full text-center px-3 py-2 rounded-md text-base font-medium btn btn-primary-inverted mt-1" onClick={toggleMobileMenu}>Sign Up</Link>
+                <Link
+                  href="/login"
+                  className="mobile-nav-link"
+                  onClick={toggleMobileMenu}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  className="block w-full text-center px-3 py-2 rounded-md text-base font-medium btn btn-primary-inverted mt-1"
+                  onClick={toggleMobileMenu}
+                >
+                  Sign Up
+                </Link>
               </>
             )}
           </nav>
@@ -145,10 +246,10 @@ const Header: React.FC = () => {
           @apply block px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-500 hover:text-white transition-colors;
         }
         .mobile-nav-link-button {
-           @apply block w-full px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-500 hover:text-white transition-colors text-left;
+          @apply block w-full px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-500 hover:text-white transition-colors text-left;
         }
         .btn-primary-inverted {
-            @apply bg-white text-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-100 transition-colors;
+          @apply bg-white text-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-100 transition-colors;
         }
       `}</style>
     </header>

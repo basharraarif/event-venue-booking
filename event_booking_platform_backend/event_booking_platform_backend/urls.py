@@ -34,9 +34,7 @@ urlpatterns = [
     path("api/", include(router.urls)),  # Include the router URLs
     # path('api/auth/', include('rest_framework.urls', namespace='rest_framework')), # Old DRF auth
     path("api/auth/", include("dj_rest_auth.urls")),  # dj-rest-auth main URLs
-    path(
-        "api/auth/registration/", include("dj_rest_auth.registration.urls")
-    ),  # dj-rest-auth registration
+    path("api/auth/registration/", include("dj_rest_auth.registration.urls")),  # dj-rest-auth registration
     path("api/venues/", include("venues.urls")),  # Venue URLs
     path("api/events-management/", include("events.urls")),  # Event and Category URLs
     path("api/bookings/", include("bookings.urls")),  # Booking URLs

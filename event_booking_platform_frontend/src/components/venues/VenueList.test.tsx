@@ -23,7 +23,6 @@ jest.mock('next/link', () => {
   };
 });
 
-
 // Mock lodash.debounce to make it execute immediately
 jest.mock('lodash', () => ({
   ...jest.requireActual('lodash'),
@@ -67,7 +66,11 @@ describe('VenueList Component', () => {
   beforeEach(() => {
     mockGetVenues.mockClear();
     // Default mock implementation for most tests
-    mockGetVenues.mockResolvedValue({ results: [], next: null, previous: null });
+    mockGetVenues.mockResolvedValue({
+      results: [],
+      next: null,
+      previous: null,
+    });
   });
 
   test('renders loading state initially and fetches venues with default params', async () => {
@@ -123,7 +126,11 @@ describe('VenueList Component', () => {
   });
 
   test('shows "no venues found" message if API returns empty list', async () => {
-    mockGetVenues.mockResolvedValueOnce({ results: [], next: null, previous: null });
+    mockGetVenues.mockResolvedValueOnce({
+      results: [],
+      next: null,
+      previous: null,
+    });
     render(<VenueList />);
 
     // Initial loading
@@ -132,7 +139,9 @@ describe('VenueList Component', () => {
     await waitFor(() => {
       // After loading, the "no venues" message should appear
       // The exact text might vary based on your component's implementation
-      expect(screen.getByText(/no venues match your criteria or none available/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no venues match your criteria or none available/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -200,7 +209,10 @@ describe('VenueList Component', () => {
     await userEvent.type(minPriceInput, '50');
     // Since debounce is immediate, this will be one call
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(2));
-    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({ minPrice: '50' }));
+    expect(mockGetVenues).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ minPrice: '50' })
+    );
 
     await userEvent.type(maxPriceInput, '200');
     // And this another
@@ -231,7 +243,8 @@ describe('VenueList Component', () => {
     await userEvent.click(nextButton);
 
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(2));
-    expect(mockGetVenues).toHaveBeenLastCalledWith(2, { // Page 2
+    expect(mockGetVenues).toHaveBeenLastCalledWith(2, {
+      // Page 2
       search: '',
       capacity: '',
       availability: '',
@@ -265,13 +278,15 @@ describe('VenueList Component', () => {
 
     // Simulate being on page 2 by clicking next, then test previous
     // First call for initial load (page 1)
-    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledWith(1, expect.anything()));
+    await waitFor(() =>
+      expect(mockGetVenues).toHaveBeenCalledWith(1, expect.anything())
+    );
 
     // Provide response for page 1 that allows going to page 2
     mockGetVenues.mockResolvedValueOnce({
-        results: mockVenues,
-        next: 'http://test.com/api/venues?page=2',
-        previous: null,
+      results: mockVenues,
+      next: 'http://test.com/api/venues?page=2',
+      previous: null,
     });
     // (This is tricky as the component state for `page` is internal)
     // Let's assume the component is already on page 2 for this specific test of "Previous"
@@ -283,24 +298,27 @@ describe('VenueList Component', () => {
     fireEvent.click(nextButton); // Go to page 2
 
     // API call for page 2
-    await waitFor(() => expect(mockGetVenues).toHaveBeenCalledWith(2, expect.anything()));
+    await waitFor(() =>
+      expect(mockGetVenues).toHaveBeenCalledWith(2, expect.anything())
+    );
 
     // Now, assume API for page 2 returns data that enables "Previous"
     mockGetVenues.mockResolvedValueOnce({
-        results: mockVenues,
-        next: 'http://test.com/api/venues?page=3',
-        previous: 'http://test.com/api/venues?page=1',
+      results: mockVenues,
+      next: 'http://test.com/api/venues?page=3',
+      previous: 'http://test.com/api/venues?page=1',
     });
     // The component re-renders with page 2 data, "Previous" should be enabled
     // Wait for UI to update (e.g. Page 2 text)
-    await screen.findByText("Page 2"); // Make sure we are on page 2
+    await screen.findByText('Page 2'); // Make sure we are on page 2
 
     const prevButton = screen.getByRole('button', { name: /previous/i });
     expect(prevButton).toBeEnabled();
     await userEvent.click(prevButton);
 
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(3)); // Initial, Next, Previous
-    expect(mockGetVenues).toHaveBeenLastCalledWith(1, { // Back to page 1
+    expect(mockGetVenues).toHaveBeenLastCalledWith(1, {
+      // Back to page 1
       search: '',
       capacity: '',
       availability: '',
@@ -324,8 +342,8 @@ describe('VenueList Component', () => {
       // Check both potential locations for the button
       const createLinks = screen.queryAllByText(/create new venue/i);
       expect(createLinks.length).toBeGreaterThan(0); // Could be 1 or 2
-      createLinks.forEach(link => {
-         expect(link.closest('a')).toHaveAttribute('href', '/venues/create');
+      createLinks.forEach((link) => {
+        expect(link.closest('a')).toHaveAttribute('href', '/venues/create');
       });
     });
 
@@ -352,7 +370,6 @@ describe('VenueList Component', () => {
     });
   });
 
-
   test('calls getVenues with price per day filters and resets to page 1', async () => {
     render(<VenueList />);
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(1)); // Initial fetch
@@ -360,15 +377,21 @@ describe('VenueList Component', () => {
     const minPriceDayInput = screen.getByLabelText(/min. price \(\$\/day\)/i);
     await userEvent.type(minPriceDayInput, '300');
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(2));
-    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({ minPricePerDay: '300' }));
+    expect(mockGetVenues).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ minPricePerDay: '300' })
+    );
 
     const maxPriceDayInput = screen.getByLabelText(/max. price \(\$\/day\)/i);
     await userEvent.type(maxPriceDayInput, '1000');
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(3));
-    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({
+    expect(mockGetVenues).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({
         minPricePerDay: '300',
-        maxPricePerDay: '1000'
-    }));
+        maxPricePerDay: '1000',
+      })
+    );
     expect(screen.getByText('Page 1')).toBeInTheDocument();
   });
 
@@ -386,10 +409,13 @@ describe('VenueList Component', () => {
     await waitFor(() => expect(mockGetVenues).toHaveBeenCalledTimes(3)); // Debounced fetch for capacity
 
     // Check if filters were applied
-    expect(mockGetVenues).toHaveBeenLastCalledWith(1, expect.objectContaining({
+    expect(mockGetVenues).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({
         search: 'Test Search',
-        capacity: '100'
-    }));
+        capacity: '100',
+      })
+    );
 
     // Click clear filters
     const clearButton = screen.getByRole('button', { name: /clear filters/i });
@@ -408,5 +434,4 @@ describe('VenueList Component', () => {
     });
     expect(screen.getByText('Page 1')).toBeInTheDocument(); // Stays on page 1 or resets to it
   });
-
 });

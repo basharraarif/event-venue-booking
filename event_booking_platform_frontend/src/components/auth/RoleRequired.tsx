@@ -13,7 +13,12 @@ interface RoleRequiredProps {
   showError?: boolean; // Optional: show an error message instead of redirect or nothing
 }
 
-const RoleRequired: React.FC<RoleRequiredProps> = ({ children, requiredRoles, fallbackUrl = '/', showError = false }) => {
+const RoleRequired: React.FC<RoleRequiredProps> = ({
+  children,
+  requiredRoles,
+  fallbackUrl = '/',
+  showError = false,
+}) => {
   const { user, isAuthenticated, isLoading, hasRole } = useAuth();
   const router = useRouter();
 
@@ -27,14 +32,17 @@ const RoleRequired: React.FC<RoleRequiredProps> = ({ children, requiredRoles, fa
     // For client components, direct call in render phase is often discouraged.
     // However, for guards, this is a common pattern if handled carefully.
     // Alternative: return a redirect component or use middleware for route protection.
-    if (typeof window !== 'undefined') { // Ensure it runs only on client
-        router.push(fallbackUrl);
+    if (typeof window !== 'undefined') {
+      // Ensure it runs only on client
+      router.push(fallbackUrl);
     }
     return <LoadingSpinner message="Redirecting..." />; // Or null, or a specific "Redirecting" component
   }
 
-  const rolesToCheck = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
-  const userHasRequiredRole = rolesToCheck.some(role => hasRole(role));
+  const rolesToCheck = Array.isArray(requiredRoles)
+    ? requiredRoles
+    : [requiredRoles];
+  const userHasRequiredRole = rolesToCheck.some((role) => hasRole(role));
 
   if (!userHasRequiredRole) {
     if (showError) {
@@ -49,7 +57,7 @@ const RoleRequired: React.FC<RoleRequiredProps> = ({ children, requiredRoles, fa
       );
     }
     if (typeof window !== 'undefined') {
-        router.push(fallbackUrl);
+      router.push(fallbackUrl);
     }
     return <LoadingSpinner message="Redirecting..." />; // Or null
   }

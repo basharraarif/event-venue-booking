@@ -25,7 +25,6 @@ const localStorageMock = (() => {
 })();
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
-
 // Test component to consume the context
 const TestConsumerComponent = () => {
   const auth = useAuth();
@@ -37,7 +36,18 @@ const TestConsumerComponent = () => {
       <div data-testid="token">{auth.token}</div>
       <div data-testid="isAdmin">{auth.hasRole('ADMIN').toString()}</div>
       <div data-testid="isCustomer">{auth.hasRole('CUSTOMER').toString()}</div>
-      <button onClick={() => auth.login('test-token', { id: '1', username: 'test', email: 'test@example.com', roles: ['CUSTOMER'] })}>Login</button>
+      <button
+        onClick={() =>
+          auth.login('test-token', {
+            id: '1',
+            username: 'test',
+            email: 'test@example.com',
+            roles: ['CUSTOMER'],
+          })
+        }
+      >
+        Login
+      </button>
       <button onClick={auth.logout}>Logout</button>
       <button onClick={() => auth.fetchAndUpdateUser()}>FetchUser</button>
     </div>
@@ -58,7 +68,9 @@ describe('AuthContext', () => {
     );
     expect(screen.getByTestId('isLoading').textContent).toBe('true'); // Initially true
     // After useEffect runs (even with no token)
-    waitFor(() => expect(screen.getByTestId('isLoading').textContent).toBe('false'));
+    waitFor(() =>
+      expect(screen.getByTestId('isLoading').textContent).toBe('false')
+    );
     expect(screen.getByTestId('isAuthenticated').textContent).toBe('false');
     expect(screen.getByTestId('user').textContent).toBe('null');
     expect(screen.getByTestId('token').textContent).toBe(''); // null becomes empty string from state
@@ -81,7 +93,9 @@ describe('AuthContext', () => {
     expect(user.roles).toEqual(['CUSTOMER']);
     expect(screen.getByTestId('token').textContent).toBe('test-token');
     expect(localStorageMock.getItem('authToken')).toBe('test-token');
-    expect(JSON.parse(localStorageMock.getItem('authUser') || '{}').username).toBe('test');
+    expect(
+      JSON.parse(localStorageMock.getItem('authUser') || '{}').username
+    ).toBe('test');
   });
 
   it('logout clears context and localStorage', () => {
@@ -132,7 +146,7 @@ describe('AuthContext', () => {
       id: 'fetchedUser1',
       username: 'fetchedUser',
       email: 'fetched@example.com',
-      roles: [{name: 'ADMIN'}, {name: 'EVENT_ORGANIZER'}] as any // Simulate backend role object structure
+      roles: [{ name: 'ADMIN' }, { name: 'EVENT_ORGANIZER' }] as any, // Simulate backend role object structure
     };
     mockedAuthService.getCurrentUser.mockResolvedValue(mockUserFromApi);
 
@@ -146,7 +160,9 @@ describe('AuthContext', () => {
     );
 
     // Wait for initial useEffect in AuthProvider to complete
-    await waitFor(() => expect(screen.getByTestId('isLoading').textContent).toBe('false'));
+    await waitFor(() =>
+      expect(screen.getByTestId('isLoading').textContent).toBe('false')
+    );
 
     // At this point, fetchAndUpdateUser was called by useEffect. Let's check its effect.
     await waitFor(() => {
@@ -167,13 +183,17 @@ describe('AuthContext', () => {
   });
 
   it('initial load from localStorage correctly sets state (including roles)', async () => {
-    const storedUser: User = { id: 'stored1', username: 'storedUser', email: 'stored@example.com', roles: ['VENUE_MANAGER'] };
+    const storedUser: User = {
+      id: 'stored1',
+      username: 'storedUser',
+      email: 'stored@example.com',
+      roles: ['VENUE_MANAGER'],
+    };
     localStorageMock.setItem('authToken', 'stored-token');
     localStorageMock.setItem('authUser', JSON.stringify(storedUser)); // AuthContext now relies on fetchUser on load
 
     // Mock getCurrentUser for the initial load sequence in AuthProvider
     mockedAuthService.getCurrentUser.mockResolvedValueOnce(storedUser);
-
 
     render(
       <AuthProvider>
@@ -181,15 +201,16 @@ describe('AuthContext', () => {
       </AuthProvider>
     );
 
-    await waitFor(() => expect(screen.getByTestId('isLoading').textContent).toBe('false'));
+    await waitFor(() =>
+      expect(screen.getByTestId('isLoading').textContent).toBe('false')
+    );
 
     await waitFor(() => {
-        expect(screen.getByTestId('isAuthenticated').textContent).toBe('true');
-        const user = JSON.parse(screen.getByTestId('user').textContent || '{}');
-        expect(user.username).toBe('storedUser');
-        expect(user.roles).toEqual(['VENUE_MANAGER']);
-        expect(screen.getByTestId('token').textContent).toBe('stored-token');
+      expect(screen.getByTestId('isAuthenticated').textContent).toBe('true');
+      const user = JSON.parse(screen.getByTestId('user').textContent || '{}');
+      expect(user.username).toBe('storedUser');
+      expect(user.roles).toEqual(['VENUE_MANAGER']);
+      expect(screen.getByTestId('token').textContent).toBe('stored-token');
     });
   });
-
 });

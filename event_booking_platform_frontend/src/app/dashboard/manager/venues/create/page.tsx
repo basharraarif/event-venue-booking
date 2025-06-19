@@ -12,7 +12,9 @@ const CreateVenuePage = () => {
   return (
     <div className="container mx-auto p-4">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Create New Venue</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Create New Venue
+        </h1>
       </header>
 
       {/*
@@ -20,14 +22,17 @@ const CreateVenuePage = () => {
         It would use venueService.createVenue() on submission.
       */}
       <VenueForm />
-
     </div>
   );
 };
 
 const ProtectedCreateVenuePage = () => {
   return (
-    <RoleRequired requiredRoles={[ROLE_ADMIN, ROLE_VENUE_MANAGER]} showError={true} fallbackUrl="/dashboard">
+    <RoleRequired
+      requiredRoles={[ROLE_ADMIN, ROLE_VENUE_MANAGER]}
+      showError={true}
+      fallbackUrl="/dashboard"
+    >
       <CreateVenuePage />
     </RoleRequired>
   );

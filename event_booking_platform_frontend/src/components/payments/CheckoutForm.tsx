@@ -4,7 +4,7 @@ import React, { useState, FormEvent } from 'react';
 import {
   PaymentElement,
   useStripe,
-  useElements
+  useElements,
 } from '@stripe/react-stripe-js';
 import { StripeError, StripePaymentElementOptions } from '@stripe/stripe-js';
 import AlertMessage from '@/components/common/AlertMessage';
@@ -14,7 +14,10 @@ interface CheckoutFormProps {
   paymentId: string;
 }
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ bookingId, paymentId }) => {
+const CheckoutForm: React.FC<CheckoutFormProps> = ({
+  bookingId,
+  paymentId,
+}) => {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -25,10 +28,12 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ bookingId, paymentId }) => 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStripeError(null); // Clear previous Stripe error object
-    setMessage(null);     // Clear previous messages
+    setMessage(null); // Clear previous messages
 
     if (!stripe || !elements) {
-      setMessage("Stripe.js has not loaded yet. Please wait a moment and try again.");
+      setMessage(
+        'Stripe.js has not loaded yet. Please wait a moment and try again.'
+      );
       return;
     }
 
@@ -46,14 +51,18 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ bookingId, paymentId }) => 
     if (error) {
       // This point will only be reached if there is an immediate error when
       // confirming the payment. Otherwise, customer will be redirected.
-      setMessage(error.message || "An unexpected error occurred.");
+      setMessage(error.message || 'An unexpected error occurred.');
       setStripeError(error); // Store the full error object
     } else if (paymentIntent && paymentIntent.status === 'succeeded') {
       // This case is unlikely to be hit if return_url is used correctly,
       // as Stripe will redirect. But handle for completeness.
-      setMessage(`Payment Succeeded! Payment Intent ID: ${paymentIntent.id}. You should be redirected shortly.`);
+      setMessage(
+        `Payment Succeeded! Payment Intent ID: ${paymentIntent.id}. You should be redirected shortly.`
+      );
     } else if (paymentIntent) {
-      setMessage(`Payment status: ${paymentIntent.status}. You may be redirected or need further action.`);
+      setMessage(
+        `Payment status: ${paymentIntent.status}. You may be redirected or need further action.`
+      );
     }
     // If no error and no specific paymentIntent status message, Stripe is likely redirecting.
     // A general message might not be needed here unless specifically handling non-redirect cases.
@@ -62,7 +71,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ bookingId, paymentId }) => 
   };
 
   const paymentElementOptions: StripePaymentElementOptions = {
-    layout: "tabs" // or "accordion", "auto"
+    layout: 'tabs', // or "accordion", "auto"
   };
 
   return (
@@ -74,21 +83,21 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ bookingId, paymentId }) => 
         className="w-full btn btn-primary" // Use new button styles
       >
         <span id="button-text">
-          {isProcessing ? "Processing..." : "Pay now"}
+          {isProcessing ? 'Processing...' : 'Pay now'}
         </span>
       </button>
 
       {/* Show any error or success messages */}
-      {message &&
+      {message && (
         <div className="mt-4">
           <AlertMessage
             message={message}
             type={stripeError ? 'error' : 'info'} // Determine type based on stripeError presence
           />
         </div>
-      }
+      )}
     </form>
   );
-}
+};
 
 export default CheckoutForm;

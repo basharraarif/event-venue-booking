@@ -2,7 +2,8 @@ import axios from 'axios';
 
 // Determine the base URL based on the environment
 // Default to local development backend if no specific env variable is set.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -16,7 +17,8 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     // Assuming you store your auth token in localStorage or a state management solution
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    const token =
+      typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (token) {
       config.headers.Authorization = `Token ${token}`;
     }

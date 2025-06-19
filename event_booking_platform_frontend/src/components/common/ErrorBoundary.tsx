@@ -23,7 +23,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    console.error('Uncaught error:', error, errorInfo);
     // You could also log the error to an error reporting service here
   }
 
@@ -33,7 +33,10 @@ class ErrorBoundary extends Component<Props, State> {
         <div className="p-4">
           <AlertMessage
             type="error"
-            message={this.props.fallbackMessage || "Something went wrong. Please try refreshing the page or contact support if the issue persists."}
+            message={
+              this.props.fallbackMessage ||
+              'Something went wrong. Please try refreshing the page or contact support if the issue persists.'
+            }
           />
           {/* Optional: Display error details in dev mode */}
           {process.env.NODE_ENV === 'development' && this.state.error && (

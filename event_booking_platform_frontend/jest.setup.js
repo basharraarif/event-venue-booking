@@ -42,7 +42,8 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 // Mock next/link
 jest.mock('next/link', () => {
   // eslint-disable-next-line react/display-name
-  return ({children, href, ...rest}) => { // REMOVED ALL TYPE ANNOTATIONS
+  return ({ children, href, ...rest }) => {
+    // REMOVED ALL TYPE ANNOTATIONS
     return React.createElement('a', { href, ...rest }, children);
   };
 });

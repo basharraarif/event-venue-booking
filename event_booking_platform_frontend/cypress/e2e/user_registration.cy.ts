@@ -35,10 +35,22 @@ describe('User Registration', () => {
 
     // Assert that validation messages appear for each required field
     // Adjust selectors and messages based on your actual form
-    cy.get('input[name="username"]').siblings('.error-message').should('be.visible').and('contain', 'Username is required');
-    cy.get('input[name="email"]').siblings('.error-message').should('be.visible').and('contain', 'Email is required');
-    cy.get('input[name="password"]').siblings('.error-message').should('be.visible').and('contain', 'Password is required');
-    cy.get('input[name="passwordConfirmation"]').siblings('.error-message').should('be.visible').and('contain', 'Password confirmation is required');
+    cy.get('input[name="username"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Username is required');
+    cy.get('input[name="email"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Email is required');
+    cy.get('input[name="password"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Password is required');
+    cy.get('input[name="passwordConfirmation"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Password confirmation is required');
   });
 
   it('should display validation error for invalid email format', () => {
@@ -48,7 +60,10 @@ describe('User Registration', () => {
     cy.get('input[name="passwordConfirmation"]').type('password123');
     cy.get('button[type="submit"]').click();
 
-    cy.get('input[name="email"]').siblings('.error-message').should('be.visible').and('contain', 'Invalid email format');
+    cy.get('input[name="email"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Invalid email format');
   });
 
   it('should display validation error for mismatched passwords', () => {
@@ -58,7 +73,10 @@ describe('User Registration', () => {
     cy.get('input[name="passwordConfirmation"]').type('password456'); // Mismatched password
     cy.get('button[type="submit"]').click();
 
-    cy.get('input[name="passwordConfirmation"]').siblings('.error-message').should('be.visible').and('contain', 'Passwords do not match');
+    cy.get('input[name="passwordConfirmation"]')
+      .siblings('.error-message')
+      .should('be.visible')
+      .and('contain', 'Passwords do not match');
   });
 
   // Add more tests as needed:

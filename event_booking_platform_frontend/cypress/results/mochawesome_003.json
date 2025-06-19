@@ -120,9 +120,7 @@
             }
           ],
           "suites": [],
-          "passes": [
-            "c1c1a781-bc44-4ad3-89c6-1fa321b6a628"
-          ],
+          "passes": ["c1c1a781-bc44-4ad3-89c6-1fa321b6a628"],
           "failures": [
             "ce56a76e-8e73-4904-9328-46f43890bee9",
             "bb3d3499-13e7-4d40-98ac-636d1cebed75",
@@ -276,9 +274,7 @@
           ],
           "suites": [],
           "passes": [],
-          "failures": [
-            "e466ab3b-db67-4784-a25e-917a65d8693e"
-          ],
+          "failures": ["e466ab3b-db67-4784-a25e-917a65d8693e"],
           "pending": [],
           "skipped": [
             "4f6574c2-2db4-491a-82ea-6ed5de167bfa",

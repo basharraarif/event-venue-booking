@@ -26,7 +26,9 @@ const VenueForm: React.FC<VenueFormProps> = ({
   const [pricingPerHour, setPricingPerHour] = useState<string | ''>('');
   const [pricingPerDay, setPricingPerDay] = useState<string | ''>('');
   const [isAvailable, setIsAvailable] = useState(true);
-  const [errors, setErrors] = useState<Partial<Record<keyof VenueFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof VenueFormData, string>>
+  >({});
 
   useEffect(() => {
     if (initialData) {
@@ -37,7 +39,10 @@ const VenueForm: React.FC<VenueFormProps> = ({
       // Handle amenities: if it's an array or object, convert to string for the form
       if (Array.isArray(initialData.amenities)) {
         setAmenities(initialData.amenities.join(', '));
-      } else if (typeof initialData.amenities === 'object' && initialData.amenities !== null) {
+      } else if (
+        typeof initialData.amenities === 'object' &&
+        initialData.amenities !== null
+      ) {
         setAmenities(Object.keys(initialData.amenities).join(', ')); // Or JSON.stringify
       } else {
         setAmenities('');
@@ -45,7 +50,9 @@ const VenueForm: React.FC<VenueFormProps> = ({
 
       setPricingPerHour(initialData.pricing_per_hour || '');
       setPricingPerDay(initialData.pricing_per_day || '');
-      setIsAvailable(initialData.is_available === undefined ? true : initialData.is_available);
+      setIsAvailable(
+        initialData.is_available === undefined ? true : initialData.is_available
+      );
     }
   }, [initialData]);
 
@@ -53,7 +60,8 @@ const VenueForm: React.FC<VenueFormProps> = ({
     const newErrors: Partial<Record<keyof VenueFormData, string>> = {};
     if (!name.trim()) newErrors.name = 'Name is required.';
     if (!address.trim()) newErrors.address = 'Address is required.';
-    if (capacity === '' || Number(capacity) <= 0) newErrors.capacity = 'Capacity must be a positive number.';
+    if (capacity === '' || Number(capacity) <= 0)
+      newErrors.capacity = 'Capacity must be a positive number.';
     // Add more validation as needed (e.g., for pricing formats)
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -66,7 +74,10 @@ const VenueForm: React.FC<VenueFormProps> = ({
     // Prepare amenities: convert comma-separated string to array/object or leave as string
     // depending on what your backend expects for the JSONField.
     // For this example, let's assume the backend can handle a list of strings if JSONField is used.
-    const amenitiesData = amenities.split(',').map(s => s.trim()).filter(s => s);
+    const amenitiesData = amenities
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s);
 
     onSubmit({
       name,
@@ -80,9 +91,17 @@ const VenueForm: React.FC<VenueFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 p-4 md:p-8 bg-white shadow-lg rounded-lg max-w-2xl mx-auto">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 p-4 md:p-8 bg-white shadow-lg rounded-lg max-w-2xl mx-auto"
+    >
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name <span className="text-red-500">*</span></label>
+        <label
+          htmlFor="name"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Name <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           id="name"
@@ -90,11 +109,18 @@ const VenueForm: React.FC<VenueFormProps> = ({
           onChange={(e) => setName(e.target.value)}
           className={`mt-1 block w-full px-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
         />
-        {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
+        {errors.name && (
+          <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+        )}
       </div>
 
       <div>
-        <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address <span className="text-red-500">*</span></label>
+        <label
+          htmlFor="address"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Address <span className="text-red-500">*</span>
+        </label>
         <textarea
           id="address"
           value={address}
@@ -102,23 +128,39 @@ const VenueForm: React.FC<VenueFormProps> = ({
           rows={3}
           className={`mt-1 block w-full px-3 py-2 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
         />
-        {errors.address && <p className="mt-1 text-xs text-red-500">{errors.address}</p>}
+        {errors.address && (
+          <p className="mt-1 text-xs text-red-500">{errors.address}</p>
+        )}
       </div>
 
       <div>
-        <label htmlFor="capacity" className="block text-sm font-medium text-gray-700">Capacity <span className="text-red-500">*</span></label>
+        <label
+          htmlFor="capacity"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Capacity <span className="text-red-500">*</span>
+        </label>
         <input
           type="number"
           id="capacity"
           value={capacity}
-          onChange={(e) => setCapacity(e.target.value === '' ? '' : Number(e.target.value))}
+          onChange={(e) =>
+            setCapacity(e.target.value === '' ? '' : Number(e.target.value))
+          }
           className={`mt-1 block w-full px-3 py-2 border ${errors.capacity ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
         />
-        {errors.capacity && <p className="mt-1 text-xs text-red-500">{errors.capacity}</p>}
+        {errors.capacity && (
+          <p className="mt-1 text-xs text-red-500">{errors.capacity}</p>
+        )}
       </div>
 
       <div>
-        <label htmlFor="amenities" className="block text-sm font-medium text-gray-700">Amenities (comma-separated)</label>
+        <label
+          htmlFor="amenities"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Amenities (comma-separated)
+        </label>
         <input
           type="text"
           id="amenities"
@@ -127,11 +169,18 @@ const VenueForm: React.FC<VenueFormProps> = ({
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           placeholder="e.g., Wi-Fi, Parking, Projector"
         />
-        <p className="mt-1 text-xs text-gray-500">Backend expects a list of strings or a JSON object for amenities.</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Backend expects a list of strings or a JSON object for amenities.
+        </p>
       </div>
 
       <div>
-        <label htmlFor="pricingPerHour" className="block text-sm font-medium text-gray-700">Price per Hour ($)</label>
+        <label
+          htmlFor="pricingPerHour"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Price per Hour ($)
+        </label>
         <input
           type="number"
           id="pricingPerHour"
@@ -143,7 +192,12 @@ const VenueForm: React.FC<VenueFormProps> = ({
       </div>
 
       <div>
-        <label htmlFor="pricingPerDay" className="block text-sm font-medium text-gray-700">Price per Day ($)</label>
+        <label
+          htmlFor="pricingPerDay"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Price per Day ($)
+        </label>
         <input
           type="number"
           id="pricingPerDay"
@@ -162,7 +216,10 @@ const VenueForm: React.FC<VenueFormProps> = ({
           onChange={(e) => setIsAvailable(e.target.checked)}
           className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
         />
-        <label htmlFor="isAvailable" className="ml-2 block text-sm text-gray-900">
+        <label
+          htmlFor="isAvailable"
+          className="ml-2 block text-sm text-gray-900"
+        >
           Is Available
         </label>
       </div>

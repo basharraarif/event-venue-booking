@@ -4,13 +4,20 @@ import React, { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Import Link for Next.js navigation
 import { useAuth } from '../../contexts/AuthContext';
-import { login as loginUser, LoginCredentials, getCurrentUser } from '../../services/authService';
+import {
+  login as loginUser,
+  LoginCredentials,
+  getCurrentUser,
+} from '../../services/authService';
 import AlertMessage from '@/components/common/AlertMessage'; // Import AlertMessage
 
 const LoginPage = () => {
   const router = useRouter();
   const { login: loginContext } = useAuth(); // login from AuthContext
-  const [credentials, setCredentials] = useState<LoginCredentials>({ email: '', password: '' });
+  const [credentials, setCredentials] = useState<LoginCredentials>({
+    email: '',
+    password: '',
+  });
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,20 +31,19 @@ const LoginPage = () => {
     setError(null);
 
     if (!credentials.email || !credentials.password) {
-        setError("Email and password are required.");
-        setIsLoading(false);
-        return;
+      setError('Email and password are required.');
+      setIsLoading(false);
+      return;
     }
 
     // Determine if login is via username or email
     // For this example, we'll use 'email' as the primary field for login
     // but dj-rest-auth can be configured for 'username' or 'email' as login field
     const loginPayload: LoginCredentials = {
-        email: credentials.email, // Assuming login with email
-        // username: credentials.username, // If using username
-        password: credentials.password,
+      email: credentials.email, // Assuming login with email
+      // username: credentials.username, // If using username
+      password: credentials.password,
     };
-
 
     try {
       const authResponse = await loginUser(loginPayload); // Call from authService

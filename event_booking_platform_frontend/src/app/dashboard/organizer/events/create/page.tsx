@@ -12,7 +12,9 @@ const CreateEventPage = () => {
   return (
     <div className="container mx-auto p-4">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Create New Event</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Create New Event
+        </h1>
       </header>
 
       {/*
@@ -21,14 +23,17 @@ const CreateEventPage = () => {
         For this task, we are focusing on role protection.
       */}
       <EventForm />
-
     </div>
   );
 };
 
 const ProtectedCreateEventPage = () => {
   return (
-    <RoleRequired requiredRoles={[ROLE_ADMIN, ROLE_EVENT_ORGANIZER]} showError={true} fallbackUrl="/dashboard">
+    <RoleRequired
+      requiredRoles={[ROLE_ADMIN, ROLE_EVENT_ORGANIZER]}
+      showError={true}
+      fallbackUrl="/dashboard"
+    >
       <CreateEventPage />
     </RoleRequired>
   );

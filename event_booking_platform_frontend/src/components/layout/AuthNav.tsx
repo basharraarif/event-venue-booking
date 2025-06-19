@@ -9,7 +9,8 @@ const AuthNav = () => {
   const { isAuthenticated, user, token, logout: logoutContext } = useAuth();
 
   const handleLogout = async () => {
-    if (token) { // Ensure token exists before trying to logout
+    if (token) {
+      // Ensure token exists before trying to logout
       await logoutUserService(token);
     }
     logoutContext();
@@ -31,10 +32,15 @@ const AuthNav = () => {
         </>
       ) : (
         <>
-          <Link href="/login" className="link-primary px-3 py-2 text-sm font-medium">
+          <Link
+            href="/login"
+            className="link-primary px-3 py-2 text-sm font-medium"
+          >
             Login
           </Link>
-          <Link href="/register" className="btn btn-primary btn-sm"> {/* Using smaller button variant */}
+          <Link href="/register" className="btn btn-primary btn-sm">
+            {' '}
+            {/* Using smaller button variant */}
             Register
           </Link>
         </>

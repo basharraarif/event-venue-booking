@@ -9,7 +9,9 @@ jest.mock('@stripe/react-stripe-js', () => ({
   ...jest.requireActual('@stripe/react-stripe-js'), // import and retain default behavior
   useStripe: jest.fn(),
   useElements: jest.fn(),
-  PaymentElement: () => <div data-testid="payment-element">Mocked Payment Element</div>, // Mock PaymentElement
+  PaymentElement: () => (
+    <div data-testid="payment-element">Mocked Payment Element</div>
+  ), // Mock PaymentElement
 }));
 
 const mockStripe = {
@@ -39,11 +41,16 @@ describe('CheckoutForm', () => {
     );
 
     expect(screen.getByTestId('payment-element')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /pay now/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /pay now/i })
+    ).toBeInTheDocument();
   });
 
   it('disables button and shows processing text during submission', async () => {
-    mockStripe.confirmPayment.mockResolvedValueOnce({ error: null, paymentIntent: { status: 'succeeded' } });
+    mockStripe.confirmPayment.mockResolvedValueOnce({
+      error: null,
+      paymentIntent: { status: 'succeeded' },
+    });
 
     render(
       <Elements stripe={stripePromise}>
@@ -62,7 +69,10 @@ describe('CheckoutForm', () => {
   });
 
   it('calls stripe.confirmPayment on submit', async () => {
-    mockStripe.confirmPayment.mockResolvedValueOnce({ error: null, paymentIntent: { status: 'succeeded', id: 'pi_123' } });
+    mockStripe.confirmPayment.mockResolvedValueOnce({
+      error: null,
+      paymentIntent: { status: 'succeeded', id: 'pi_123' },
+    });
 
     render(
       <Elements stripe={stripePromise}>
@@ -85,7 +95,7 @@ describe('CheckoutForm', () => {
   it('displays error message if confirmPayment fails', async () => {
     const errorMessage = 'Your card was declined.';
     mockStripe.confirmPayment.mockResolvedValueOnce({
-      error: { type: 'card_error', message: errorMessage }
+      error: { type: 'card_error', message: errorMessage },
     });
 
     render(
@@ -111,8 +121,9 @@ describe('CheckoutForm', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /pay now/i }));
     await waitFor(() => {
-        expect(screen.getByText(/Stripe.js has not loaded yet/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Stripe.js has not loaded yet/i)
+      ).toBeInTheDocument();
     });
   });
-
 });

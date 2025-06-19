@@ -7,7 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 
 // Mock services and navigation
 jest.mock('@/services/eventService');
-const mockGetEventById = getEventById as jest.MockedFunction<typeof getEventById>;
+const mockGetEventById = getEventById as jest.MockedFunction<
+  typeof getEventById
+>;
 const mockUpdateEvent = updateEvent as jest.MockedFunction<typeof updateEvent>; // Assuming this exists
 
 const mockRouterPush = jest.fn();
@@ -16,7 +18,11 @@ const mockRouterReplace = jest.fn();
 let mockParams = { eventId: 'event1' }; // Default mock params
 
 jest.mock('next/navigation', () => ({
-  useRouter: jest.fn(() => ({ push: mockRouterPush, back: mockRouterBack, replace: mockRouterReplace })),
+  useRouter: jest.fn(() => ({
+    push: mockRouterPush,
+    back: mockRouterBack,
+    replace: mockRouterReplace,
+  })),
   useParams: jest.fn(() => mockParams),
   usePathname: jest.fn(() => '/dashboard/organizer/events/edit/event1'),
 }));
@@ -26,39 +32,73 @@ jest.mock('@/contexts/AuthContext');
 const mockUseAuth = useAuth as jest.Mock;
 
 // Mock RoleRequired HOC/Component behavior for simplicity in page test
-jest.mock('@/components/auth/RoleRequired', () => ({ children, requiredRoles, showError }: any) => {
-  const auth = useAuth(); // Uses the mocked useAuth
-  const rolesToCheck = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
-  const userHasRequiredRole = rolesToCheck.some((role: string) => auth.hasRole(role));
+jest.mock(
+  '@/components/auth/RoleRequired',
+  () =>
+    ({ children, requiredRoles, showError }: any) => {
+      const auth = useAuth(); // Uses the mocked useAuth
+      const rolesToCheck = Array.isArray(requiredRoles)
+        ? requiredRoles
+        : [requiredRoles];
+      const userHasRequiredRole = rolesToCheck.some((role: string) =>
+        auth.hasRole(role)
+      );
 
-  if (auth.isLoading) return <div data-testid="loading-spinner">Mock Loading Auth...</div>;
-  if (!auth.isAuthenticated) {
-    if (showError) return <div data-testid="mock-role-error">Not Authenticated (RoleRequired Mock)</div>;
-    // Simulate redirect if not showing error
-    if (typeof window !== 'undefined') mockRouterReplace('/login-mock-redirect');
-    return null;
-  }
-  if (!userHasRequiredRole) {
-    if (showError) return <div data-testid="mock-role-error">Access Denied: Missing Role (RoleRequired Mock)</div>;
-    // Simulate redirect if not showing error
-    if (typeof window !== 'undefined') mockRouterReplace('/fallback-mock-redirect');
-    return null;
-  }
-  return <>{children}</>; // Render children if role check passes
-});
+      if (auth.isLoading)
+        return <div data-testid="loading-spinner">Mock Loading Auth...</div>;
+      if (!auth.isAuthenticated) {
+        if (showError)
+          return (
+            <div data-testid="mock-role-error">
+              Not Authenticated (RoleRequired Mock)
+            </div>
+          );
+        // Simulate redirect if not showing error
+        if (typeof window !== 'undefined')
+          mockRouterReplace('/login-mock-redirect');
+        return null;
+      }
+      if (!userHasRequiredRole) {
+        if (showError)
+          return (
+            <div data-testid="mock-role-error">
+              Access Denied: Missing Role (RoleRequired Mock)
+            </div>
+          );
+        // Simulate redirect if not showing error
+        if (typeof window !== 'undefined')
+          mockRouterReplace('/fallback-mock-redirect');
+        return null;
+      }
+      return <>{children}</>; // Render children if role check passes
+    }
+);
 
 // Mock common components
-jest.mock('@/components/common/LoadingSpinner', () => ({ message }: { message: string }) => <div data-testid="loading-spinner">{message}</div>);
-jest.mock('@/components/common/AlertMessage', () => ({ message, type }: { message: string, type: string }) => <div data-testid="alert-message" data-type={type}>{message}</div>);
-
+jest.mock(
+  '@/components/common/LoadingSpinner',
+  () =>
+    ({ message }: { message: string }) => (
+      <div data-testid="loading-spinner">{message}</div>
+    )
+);
+jest.mock(
+  '@/components/common/AlertMessage',
+  () =>
+    ({ message, type }: { message: string; type: string }) => (
+      <div data-testid="alert-message" data-type={type}>
+        {message}
+      </div>
+    )
+);
 
 const mockEventData: Event = {
-  id: "event1",
+  id: 'event1',
   name: 'Existing Event',
   description: 'An event to edit',
   venue: 'venue1',
-  organizer: "organizerUser123", // This ID should match the test user for ownership checks
-  organizer_username: "eventOrganizerUser",
+  organizer: 'organizerUser123', // This ID should match the test user for ownership checks
+  organizer_username: 'eventOrganizerUser',
   categories: [],
   start_time: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
   end_time: new Date(Date.now() + 50 * 3600 * 1000).toISOString(),
@@ -67,10 +107,19 @@ const mockEventData: Event = {
 };
 
 // Helper to render with specific AuthContext values
-const renderPage = (authContextValue: Partial<ReturnType<typeof useAuth>>, currentParams = { eventId: 'event1' }) => {
+const renderPage = (
+  authContextValue: Partial<ReturnType<typeof useAuth>>,
+  currentParams = { eventId: 'event1' }
+) => {
   mockUseAuth.mockReturnValue({
-    isAuthenticated: false, user: null, isLoading: false, hasRole: jest.fn().mockReturnValue(false),
-    login: jest.fn(), logout: jest.fn(), fetchAndUpdateUser: jest.fn().mockResolvedValue(undefined), token: null,
+    isAuthenticated: false,
+    user: null,
+    isLoading: false,
+    hasRole: jest.fn().mockReturnValue(false),
+    login: jest.fn(),
+    logout: jest.fn(),
+    fetchAndUpdateUser: jest.fn().mockResolvedValue(undefined),
+    token: null,
     ...authContextValue,
   });
   mockParams = currentParams;
@@ -82,10 +131,26 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
   const ROLE_ADMIN = 'ADMIN';
   const ROLE_CUSTOMER = 'CUSTOMER';
 
-  const eventOrganizerOwner = { id: "organizerUser123", username: "eventOrganizerUser", roles: [ROLE_EVENT_ORGANIZER] };
-  const eventOrganizerNonOwner = { id: "otherOrganizerUser456", username: "otherEventOrganizer", roles: [ROLE_EVENT_ORGANIZER] };
-  const adminUser = { id: "adminUser789", username: "admin", roles: [ROLE_ADMIN] };
-  const customerUser = { id: "customerUser101", username: "customer", roles: [ROLE_CUSTOMER] };
+  const eventOrganizerOwner = {
+    id: 'organizerUser123',
+    username: 'eventOrganizerUser',
+    roles: [ROLE_EVENT_ORGANIZER],
+  };
+  const eventOrganizerNonOwner = {
+    id: 'otherOrganizerUser456',
+    username: 'otherEventOrganizer',
+    roles: [ROLE_EVENT_ORGANIZER],
+  };
+  const adminUser = {
+    id: 'adminUser789',
+    username: 'admin',
+    roles: [ROLE_ADMIN],
+  };
+  const customerUser = {
+    id: 'customerUser101',
+    username: 'customer',
+    roles: [ROLE_CUSTOMER],
+  };
 
   beforeEach(() => {
     mockGetEventById.mockClear();
@@ -99,9 +164,13 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
 
   it('blocks unauthenticated user (handled by RoleRequired mock)', () => {
     renderPage({ isAuthenticated: false, isLoading: false });
-    expect(screen.queryByRole('heading', { name: /edit event/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /edit event/i })
+    ).not.toBeInTheDocument();
     // Check for RoleRequired's mock message because showError is true on the page
-    expect(screen.getByTestId('mock-role-error')).toHaveTextContent('Not Authenticated (RoleRequired Mock)');
+    expect(screen.getByTestId('mock-role-error')).toHaveTextContent(
+      'Not Authenticated (RoleRequired Mock)'
+    );
   });
 
   it('blocks authenticated user with incorrect role (e.g., CUSTOMER)', () => {
@@ -111,8 +180,12 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
       isLoading: false,
       hasRole: (role: string) => customerUser.roles.includes(role),
     });
-    expect(screen.queryByRole('heading', { name: /edit event/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId('mock-role-error')).toHaveTextContent('Access Denied: Missing Role (RoleRequired Mock)');
+    expect(
+      screen.queryByRole('heading', { name: /edit event/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('mock-role-error')).toHaveTextContent(
+      'Access Denied: Missing Role (RoleRequired Mock)'
+    );
   });
 
   it('shows error for EVENT_ORGANIZER who is not the owner of the event', async () => {
@@ -125,9 +198,13 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('You are not authorized to edit this event.');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        'You are not authorized to edit this event.'
+      );
     });
-    expect(screen.queryByRole('heading', { name: /edit event/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /edit event/i })
+    ).not.toBeInTheDocument();
   });
 
   it('renders placeholder form for ADMIN user (even if not owner)', async () => {
@@ -139,10 +216,16 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
       hasRole: (role: string) => adminUser.roles.includes(role),
     });
 
-    await waitFor(() => expect(mockGetEventById).toHaveBeenCalledWith('event1'));
-    expect(screen.getByRole('heading', { name: `Edit Event: ${mockEventData.name}` })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockGetEventById).toHaveBeenCalledWith('event1')
+    );
+    expect(
+      screen.getByRole('heading', { name: `Edit Event: ${mockEventData.name}` })
+    ).toBeInTheDocument();
     // Check for placeholder content since EventForm is not implemented
-    expect(screen.getByText(/event editing form will be here/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/event editing form will be here/i)
+    ).toBeInTheDocument();
   });
 
   it('renders placeholder form for EVENT_ORGANIZER who is the owner', async () => {
@@ -154,13 +237,19 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
       hasRole: (role: string) => eventOrganizerOwner.roles.includes(role),
     });
 
-    await waitFor(() => expect(mockGetEventById).toHaveBeenCalledWith('event1'));
-    expect(screen.getByRole('heading', { name: `Edit Event: ${mockEventData.name}` })).toBeInTheDocument();
-    expect(screen.getByText(/event editing form will be here/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockGetEventById).toHaveBeenCalledWith('event1')
+    );
+    expect(
+      screen.getByRole('heading', { name: `Edit Event: ${mockEventData.name}` })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/event editing form will be here/i)
+    ).toBeInTheDocument();
   });
 
   it('displays error if event data fetching fails', async () => {
-    mockGetEventById.mockRejectedValueOnce(new Error("Failed to fetch event"));
+    mockGetEventById.mockRejectedValueOnce(new Error('Failed to fetch event'));
     renderPage({
       isAuthenticated: true,
       user: eventOrganizerOwner as any,
@@ -168,7 +257,9 @@ describe('EditEventPage (ProtectedEditEventPage)', () => {
       hasRole: (role: string) => eventOrganizerOwner.roles.includes(role),
     });
     await waitFor(() => {
-      expect(screen.getByTestId('alert-message')).toHaveTextContent('Failed to load event details for editing.');
+      expect(screen.getByTestId('alert-message')).toHaveTextContent(
+        'Failed to load event details for editing.'
+      );
     });
   });
 

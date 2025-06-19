@@ -16,7 +16,8 @@ const withAuth = <P extends object>(WrappedComponent: ComponentType<P>) => {
     }, [isLoading, isAuthenticated, router]);
 
     // Display a loading state while checking authentication
-    if (isLoading || (!isAuthenticated && token)) { // also show loading if token exists but user not yet confirmed
+    if (isLoading || (!isAuthenticated && token)) {
+      // also show loading if token exists but user not yet confirmed
       return (
         <div className="flex justify-center items-center min-h-screen">
           <p className="text-xl">Loading authentication...</p>

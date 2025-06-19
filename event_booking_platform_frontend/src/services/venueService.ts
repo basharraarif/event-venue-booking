@@ -8,7 +8,7 @@ export interface Venue {
   capacity: number;
   amenities: Record<string, any> | string[]; // Can be a JSON object or an array of strings
   pricing_per_hour: string | null; // DecimalFields are often returned as strings
-  pricing_per_day: string | null;  // DecimalFields are often returned as strings
+  pricing_per_day: string | null; // DecimalFields are often returned as strings
   is_available: boolean;
   created_at: string; // DateTimeFields are typically returned as ISO strings
   updated_at: string; // DateTimeFields are typically returned as ISO strings
@@ -46,7 +46,9 @@ interface VenuesResponse {
 
 export const getVenues = async (params?: any): Promise<VenuesResponse> => {
   try {
-    const response = await apiClient.get<VenuesResponse>('/venues/', { params });
+    const response = await apiClient.get<VenuesResponse>('/venues/', {
+      params,
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching venues:', error);
@@ -68,7 +70,9 @@ export const getVenueById = async (id: string): Promise<Venue> => {
 };
 
 // Function to create a new venue
-export const createVenue = async (venueData: Omit<Venue, 'id' | 'created_at' | 'updated_at'>): Promise<Venue> => {
+export const createVenue = async (
+  venueData: Omit<Venue, 'id' | 'created_at' | 'updated_at'>
+): Promise<Venue> => {
   try {
     const response = await apiClient.post<Venue>('/venues/', venueData);
     return response.data;
@@ -79,7 +83,10 @@ export const createVenue = async (venueData: Omit<Venue, 'id' | 'created_at' | '
 };
 
 // Function to update an existing venue
-export const updateVenue = async (id: string, venueData: Partial<Omit<Venue, 'id' | 'created_at' | 'updated_at'>>): Promise<Venue> => {
+export const updateVenue = async (
+  id: string,
+  venueData: Partial<Omit<Venue, 'id' | 'created_at' | 'updated_at'>>
+): Promise<Venue> => {
   try {
     const response = await apiClient.put<Venue>(`/venues/${id}/`, venueData); // Or PATCH if you prefer partial updates
     return response.data;

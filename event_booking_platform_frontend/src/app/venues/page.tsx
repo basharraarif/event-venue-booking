@@ -22,7 +22,9 @@ const VenuesPage: React.FC = () => {
             </div>
           </header>
       */}
-      <main className="py-8"> {/* Added some padding around the VenueList */}
+      <main className="py-8">
+        {' '}
+        {/* Added some padding around the VenueList */}
         <VenueList />
       </main>
       {/* A page-specific footer could also be added here. */}

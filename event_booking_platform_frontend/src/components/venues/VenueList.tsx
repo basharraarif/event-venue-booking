@@ -34,44 +34,62 @@ const VenueList: React.FC = () => {
   };
   const [filterParams, setFilterParams] = useState(initialFilterParams);
 
-  const fetchVenues = useCallback(async (currentPage: number, currentFilterParams: typeof initialFilterParams) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: any = { page: currentPage };
-      if (currentFilterParams.search) params.search = currentFilterParams.search;
-      // if (currentFilterParams.addressContains) params.address__icontains = currentFilterParams.addressContains; // Example for specific field
-      if (currentFilterParams.capacity) params.capacity__gte = currentFilterParams.capacity;
-      if (currentFilterParams.availability !== '') params.is_available = currentFilterParams.availability;
-      if (currentFilterParams.minPricePerHour) params.pricing_per_hour__gte = currentFilterParams.minPricePerHour;
-      if (currentFilterParams.maxPricePerHour) params.pricing_per_hour__lte = currentFilterParams.maxPricePerHour;
-      if (currentFilterParams.minPricePerDay) params.pricing_per_day__gte = currentFilterParams.minPricePerDay;
-      if (currentFilterParams.maxPricePerDay) params.pricing_per_day__lte = currentFilterParams.maxPricePerDay;
+  const fetchVenues = useCallback(
+    async (
+      currentPage: number,
+      currentFilterParams: typeof initialFilterParams
+    ) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params: any = { page: currentPage };
+        if (currentFilterParams.search)
+          params.search = currentFilterParams.search;
+        // if (currentFilterParams.addressContains) params.address__icontains = currentFilterParams.addressContains; // Example for specific field
+        if (currentFilterParams.capacity)
+          params.capacity__gte = currentFilterParams.capacity;
+        if (currentFilterParams.availability !== '')
+          params.is_available = currentFilterParams.availability;
+        if (currentFilterParams.minPricePerHour)
+          params.pricing_per_hour__gte = currentFilterParams.minPricePerHour;
+        if (currentFilterParams.maxPricePerHour)
+          params.pricing_per_hour__lte = currentFilterParams.maxPricePerHour;
+        if (currentFilterParams.minPricePerDay)
+          params.pricing_per_day__gte = currentFilterParams.minPricePerDay;
+        if (currentFilterParams.maxPricePerDay)
+          params.pricing_per_day__lte = currentFilterParams.maxPricePerDay;
 
-      const response = await getVenues(params); // Ensure getVenues can handle these params
-      setVenues(response.results || []); // Handle case where results might be undefined
-      setHasNextPage(response.next !== null);
-      setHasPrevPage(response.previous !== null);
-    } catch (err) {
-      setError('Failed to fetch venues. Please try again later.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // Empty dependency array: fetchVenues itself doesn't depend on component state/props directly
+        const response = await getVenues(params); // Ensure getVenues can handle these params
+        setVenues(response.results || []); // Handle case where results might be undefined
+        setHasNextPage(response.next !== null);
+        setHasPrevPage(response.previous !== null);
+      } catch (err) {
+        setError('Failed to fetch venues. Please try again later.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  ); // Empty dependency array: fetchVenues itself doesn't depend on component state/props directly
 
   // Debounced function to update filterParams and reset page
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateFiltersAndResetPage = useCallback(
     debounce((newFilterKeyValue) => {
-      setFilterParams(prevParams => ({ ...prevParams, ...newFilterKeyValue }));
+      setFilterParams((prevParams) => ({
+        ...prevParams,
+        ...newFilterKeyValue,
+      }));
       setPage(1); // Reset page to 1 when filters change
     }, 500), // 500ms debounce time
     [] // No dependencies for the debounce wrapper itself
   );
 
   // Handler for input changes
-  const handleFilterChange = (newFilterKeyValue: Partial<typeof initialFilterParams>) => {
+  const handleFilterChange = (
+    newFilterKeyValue: Partial<typeof initialFilterParams>
+  ) => {
     debouncedUpdateFiltersAndResetPage(newFilterKeyValue);
   };
 
@@ -98,7 +116,9 @@ const VenueList: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Venues</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Venues
+        </h1>
         {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
           <Link href="/venues/create" legacyBehavior>
             <a className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
@@ -110,10 +130,17 @@ const VenueList: React.FC = () => {
 
       {/* Filter Section */}
       <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow">
-        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4">Filter Venues</h2>
+        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4">
+          Filter Venues
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-end">
           <div>
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
+            <label
+              htmlFor="search"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Search
+            </label>
             <input
               type="text"
               id="search"
@@ -126,7 +153,12 @@ const VenueList: React.FC = () => {
             />
           </div>
           <div>
-            <label htmlFor="capacityMin" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Capacity</label>
+            <label
+              htmlFor="capacityMin"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Min. Capacity
+            </label>
             <input
               type="number"
               id="capacityMin"
@@ -139,13 +171,20 @@ const VenueList: React.FC = () => {
             />
           </div>
           <div>
-            <label htmlFor="availability" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Availability</label>
+            <label
+              htmlFor="availability"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Availability
+            </label>
             <select
               id="availability"
               name="availability" // Ensure name attribute
               data-cy="filter-availability-select"
               value={filterParams.availability}
-              onChange={(e) => handleFilterChange({ availability: e.target.value })}
+              onChange={(e) =>
+                handleFilterChange({ availability: e.target.value })
+              }
               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
               <option value="">Any</option>
@@ -154,59 +193,89 @@ const VenueList: React.FC = () => {
             </select>
           </div>
           <div>
-            <label htmlFor="minPricePerHour" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Price ($/hr)</label>
+            <label
+              htmlFor="minPricePerHour"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Min. Price ($/hr)
+            </label>
             <input
               type="number"
               id="minPricePerHour"
               name="minPricePerHour" // Ensure name attribute
               data-cy="filter-min-price-per-hour-input"
               value={filterParams.minPricePerHour}
-              onChange={(e) => handleFilterChange({ minPricePerHour: e.target.value })}
+              onChange={(e) =>
+                handleFilterChange({ minPricePerHour: e.target.value })
+              }
               placeholder="e.g., 100"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
-            <label htmlFor="maxPricePerHour" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Max. Price ($/hr)</label>
+            <label
+              htmlFor="maxPricePerHour"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Max. Price ($/hr)
+            </label>
             <input
               type="number"
               id="maxPricePerHour"
               name="maxPricePerHour" // Ensure name attribute
               data-cy="filter-max-price-per-hour-input"
               value={filterParams.maxPricePerHour}
-              onChange={(e) => handleFilterChange({ maxPricePerHour: e.target.value })}
+              onChange={(e) =>
+                handleFilterChange({ maxPricePerHour: e.target.value })
+              }
               placeholder="e.g., 500"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           {/* New Price Per Day Filters */}
           <div>
-            <label htmlFor="minPricePerDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Min. Price ($/day)</label>
+            <label
+              htmlFor="minPricePerDay"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Min. Price ($/day)
+            </label>
             <input
               type="number"
               id="minPricePerDay"
               name="minPricePerDay" // Ensure name attribute
               data-cy="filter-min-price-per-day-input"
               value={filterParams.minPricePerDay}
-              onChange={(e) => handleFilterChange({ minPricePerDay: e.target.value })}
+              onChange={(e) =>
+                handleFilterChange({ minPricePerDay: e.target.value })
+              }
               placeholder="e.g., 500"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
-            <label htmlFor="maxPricePerDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Max. Price ($/day)</label>
+            <label
+              htmlFor="maxPricePerDay"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Max. Price ($/day)
+            </label>
             <input
               type="number"
               id="maxPricePerDay"
               name="maxPricePerDay" // Ensure name attribute
               data-cy="filter-max-price-per-day-input"
               value={filterParams.maxPricePerDay}
-              onChange={(e) => handleFilterChange({ maxPricePerDay: e.target.value })}
+              onChange={(e) =>
+                handleFilterChange({ maxPricePerDay: e.target.value })
+              }
               placeholder="e.g., 2000"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
-          <div className="sm:col-span-2 md:col-span-3 lg:col-span-1 flex items-end"> {/* Adjust span for button layout */}
+          <div className="sm:col-span-2 md:col-span-3 lg:col-span-1 flex items-end">
+            {' '}
+            {/* Adjust span for button layout */}
             <button
               onClick={clearFilters}
               data-cy="clear-filters-button"
@@ -227,25 +296,32 @@ const VenueList: React.FC = () => {
 
       {/* More nuanced loading state for when filters are applied but list isn't empty */}
       {loading && venues.length > 0 && (
-         <div className="text-center py-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Applying filters...</p>
-         </div>
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Applying filters...
+          </p>
+        </div>
       )}
 
       {venues.length === 0 && !loading && !error && (
         <div className="text-center py-10" data-cy="no-venues-message">
-          <p className="text-xl text-gray-700 dark:text-gray-300">No venues match your criteria or none available.</p>
-            {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
-              <Link href="/venues/create" legacyBehavior>
-                <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
-                  Create New Venue
-                </a>
-              </Link>
-            )}
+          <p className="text-xl text-gray-700 dark:text-gray-300">
+            No venues match your criteria or none available.
+          </p>
+          {isAuthenticated && hasRole(ROLE_VENUE_MANAGER) && (
+            <Link href="/venues/create" legacyBehavior>
+              <a className="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+                Create New Venue
+              </a>
+            </Link>
+          )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" data-cy="venue-list-container">
+      <div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+        data-cy="venue-list-container"
+      >
         {venues.map((venue) => (
           <VenueCard key={venue.id} venue={venue} />
         ))}
@@ -261,7 +337,12 @@ const VenueList: React.FC = () => {
           >
             Previous
           </button>
-          <span className="text-sm text-gray-700" data-cy="pagination-page-display">Page {page}</span>
+          <span
+            className="text-sm text-gray-700"
+            data-cy="pagination-page-display"
+          >
+            Page {page}
+          </span>
           <button
             data-cy="pagination-next-button"
             onClick={() => setPage(page + 1)}

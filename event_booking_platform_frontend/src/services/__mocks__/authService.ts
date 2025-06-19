@@ -1,19 +1,24 @@
 // src/services/__mocks__/authService.ts
 
 export const login = jest.fn((credentials) => {
-  if (credentials.email === 'test@example.com' && credentials.password === 'password') {
+  if (
+    credentials.email === 'test@example.com' &&
+    credentials.password === 'password'
+  ) {
     return Promise.resolve({
       key: 'mock-auth-token',
       user: {
         pk: 1,
-        id:1,
+        id: 1,
         username: 'testuser',
         email: 'test@example.com',
         // first_name: '', last_name: ''
       },
     });
   }
-  return Promise.reject({ non_field_errors: ['Unable to log in with provided credentials.'] });
+  return Promise.reject({
+    non_field_errors: ['Unable to log in with provided credentials.'],
+  });
 });
 
 export const register = jest.fn((data) => {
@@ -30,7 +35,7 @@ export const register = jest.fn((data) => {
       id: Date.now(),
       username: data.username,
       email: data.email,
-    }
+    },
   });
 });
 

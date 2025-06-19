@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import environ
+
 # import os # Unused
 from pathlib import Path
+
 # import sys # Unused
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,8 +26,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     # set casting, default value
     DEBUG=(bool, False),
-    DATABASE_URL=(str, 'sqlite:///' + str(BASE_DIR / "db.sqlite3")),  # Default to SQLite if not set
-    REDIS_URL=(str, 'redis://localhost:6379/1'),  # Default Redis URL
+    DATABASE_URL=(str, "sqlite:///" + str(BASE_DIR / "db.sqlite3")),  # Default to SQLite if not set
+    REDIS_URL=(str, "redis://localhost:6379/1"),  # Default Redis URL
 )
 
 # Assuming .env file is in the parent directory of settings.py (project root)
@@ -83,9 +85,7 @@ SESSION_COOKIE_SECURE = not DEBUG  # True in production
 # SECRET_KEY = 'django-insecure-gw!vhy+3f_s)ard3$du2a@h433km21=cz0tbigz5u5ar1d!+ak'  # Redundant
 # DEBUG = True  # Redundant, use env('DEBUG', default=False)
 
-ALLOWED_HOSTS = env.list(
-    "ALLOWED_HOSTS", default=[]
-)  # Load from env, default to empty list
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])  # Load from env, default to empty list
 
 
 # Application definition
@@ -173,9 +173,7 @@ WSGI_APPLICATION = "event_booking_platform_backend.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-DATABASES = {
-    'default': env.db_url('DATABASE_URL')  # Uses dj_database_url to parse DATABASE_URL
-}
+DATABASES = {"default": env.db_url("DATABASE_URL")}  # Uses dj_database_url to parse DATABASE_URL
 # Ensure the appropriate adapter (e.g., psycopg2-binary) is installed for PostgreSQL.
 
 # if 'test' in sys.argv: # Keep test db as in-memory sqlite
@@ -187,7 +185,7 @@ DATABASES = {
 # Cache
 # https://docs.djangoproject.com/en/5.0/topics/cache/
 CACHES = {
-    "default": env.cache_url('REDIS_URL')  # Uses django-environ to parse REDIS_URL
+    "default": env.cache_url("REDIS_URL")  # Uses django-environ to parse REDIS_URL
     # Example for development if Redis is not available:
     # "default": {
     #     "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -199,26 +197,26 @@ CACHES = {
 # Configure email backend using environment variables.
 # Defaults to SMTP backend, but can be overridden (e.g., to console backend for development).
 
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = env('EMAIL_HOST', default='localhost') # Default for local testing (e.g. MailHog)
-EMAIL_PORT = env.int('EMAIL_PORT', default=1025)    # Default for local testing (e.g. MailHog)
-EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False) # Default for local testing (MailHog typically doesn't use TLS)
-EMAIL_HOST_USER = env('EMAIL_HOST_USER', default=None) # SMTP username, None if not needed
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default=None) # SMTP password, None if not needed
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")  # Default for local testing (e.g. MailHog)
+EMAIL_PORT = env.int("EMAIL_PORT", default=1025)  # Default for local testing (e.g. MailHog)
+EMAIL_USE_TLS = env.bool(
+    "EMAIL_USE_TLS", default=False
+)  # Default for local testing (MailHog typically doesn't use TLS)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default=None)  # SMTP username, None if not needed
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default=None)  # SMTP password, None if not needed
 
 # DEFAULT_FROM_EMAIL is used for various automated correspondence from Django/Allauth
 # Ensure this is a valid email address for your domain.
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@example.com')
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 # SERVER_EMAIL is used for error notifications to site administrators.
-SERVER_EMAIL = env('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL) # Often same as DEFAULT_FROM_EMAIL
+SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)  # Often same as DEFAULT_FROM_EMAIL
 
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly"
-    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly"],
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",

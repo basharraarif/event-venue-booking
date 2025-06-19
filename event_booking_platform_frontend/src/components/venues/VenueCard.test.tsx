@@ -6,9 +6,9 @@ import { Venue } from '@/services/venueService'; // Assuming path alias is set u
 
 // Mock Next.js Link component
 jest.mock('next/link', () => {
-    return ({ children, href }) => {
-        return <a href={href}>{children}</a>;
-    };
+  return ({ children, href }) => {
+    return <a href={href}>{children}</a>;
+  };
 });
 
 const mockVenue: Venue = {
@@ -30,15 +30,25 @@ describe('VenueCard Component', () => {
 
     expect(screen.getByText(mockVenue.name)).toBeInTheDocument();
     expect(screen.getByText(mockVenue.address)).toBeInTheDocument();
-    expect(screen.getByText(`Capacity: ${mockVenue.capacity}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Capacity: ${mockVenue.capacity}`)
+    ).toBeInTheDocument();
     expect(screen.getByText('Available')).toBeInTheDocument(); // Since is_available is true
 
     // Check pricing (ensure parseFloat and toFixed are handled if values can be null)
     if (mockVenue.pricing_per_hour) {
-      expect(screen.getByText(`Price per hour: $${parseFloat(mockVenue.pricing_per_hour).toFixed(2)}`)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          `Price per hour: $${parseFloat(mockVenue.pricing_per_hour).toFixed(2)}`
+        )
+      ).toBeInTheDocument();
     }
     if (mockVenue.pricing_per_day) {
-      expect(screen.getByText(`Price per day: $${parseFloat(mockVenue.pricing_per_day).toFixed(2)}`)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          `Price per day: $${parseFloat(mockVenue.pricing_per_day).toFixed(2)}`
+        )
+      ).toBeInTheDocument();
     }
   });
 
@@ -49,25 +59,34 @@ describe('VenueCard Component', () => {
   });
 
   it('shows "Pricing not available" when prices are null', () => {
-    const noPriceVenue = { ...mockVenue, pricing_per_hour: null, pricing_per_day: null };
+    const noPriceVenue = {
+      ...mockVenue,
+      pricing_per_hour: null,
+      pricing_per_day: null,
+    };
     render(<VenueCard venue={noPriceVenue} />);
     expect(screen.getByText('Pricing not available')).toBeInTheDocument();
   });
 
   it('renders amenities if they are an array of strings', () => {
-    const venueWithArrayAmenities = { ...mockVenue, amenities: ["Parking", "Sound System"] };
+    const venueWithArrayAmenities = {
+      ...mockVenue,
+      amenities: ['Parking', 'Sound System'],
+    };
     render(<VenueCard venue={venueWithArrayAmenities} />);
     expect(screen.getByText(/Parking/i)).toBeInTheDocument();
     expect(screen.getByText(/Sound System/i)).toBeInTheDocument();
   });
 
   it('renders amenities if they are an object', () => {
-    const venueWithObjectAmenities = { ...mockVenue, amenities: { wifi: "yes", screen: "available" } };
+    const venueWithObjectAmenities = {
+      ...mockVenue,
+      amenities: { wifi: 'yes', screen: 'available' },
+    };
     render(<VenueCard venue={venueWithObjectAmenities} />);
     expect(screen.getByText(/wifi: yes/i)).toBeInTheDocument();
     expect(screen.getByText(/screen: available/i)).toBeInTheDocument();
   });
-
 
   it('has an "Edit" link pointing to the correct URL', () => {
     render(<VenueCard venue={mockVenue} />);

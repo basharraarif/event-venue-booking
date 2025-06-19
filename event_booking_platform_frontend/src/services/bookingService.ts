@@ -35,10 +35,15 @@ const bookingService = {
       // The backend should automatically filter by user based on the token.
       // If explicit filtering by user ID is needed and allowed by backend:
       // const response = await axiosInstance.get<Booking[]>('/bookings/', { params: { ...params, user: userId } });
-      const response = await axiosInstance.get<Booking[]>('/bookings/', { params }); // Assumes backend filters by authenticated user
+      const response = await axiosInstance.get<Booking[]>('/bookings/', {
+        params,
+      }); // Assumes backend filters by authenticated user
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching my bookings:', error.response?.data || error.message);
+      console.error(
+        'Error fetching my bookings:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
@@ -48,7 +53,10 @@ const bookingService = {
       const response = await axiosInstance.get<Booking>(`/bookings/${id}/`);
       return response.data;
     } catch (error: any) {
-      console.error(`Error fetching booking ${id}:`, error.response?.data || error.message);
+      console.error(
+        `Error fetching booking ${id}:`,
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
@@ -58,7 +66,10 @@ const bookingService = {
       const response = await axiosInstance.post<Booking>('/bookings/', payload);
       return response.data;
     } catch (error: any) {
-      console.error('Error creating booking:', error.response?.data || error.message);
+      console.error(
+        'Error creating booking:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   },
@@ -67,13 +78,18 @@ const bookingService = {
   cancelBooking: async (id: string): Promise<Booking> => {
     try {
       // Backend might expect a PATCH with status: 'cancelled'
-      const response = await axiosInstance.patch<Booking>(`/bookings/${id}/`, { status: 'cancelled' });
+      const response = await axiosInstance.patch<Booking>(`/bookings/${id}/`, {
+        status: 'cancelled',
+      });
       return response.data;
     } catch (error: any) {
-      console.error(`Error cancelling booking ${id}:`, error.response?.data || error.message);
+      console.error(
+        `Error cancelling booking ${id}:`,
+        error.response?.data || error.message
+      );
       throw error;
     }
-  }
+  },
 };
 
 export default bookingService;

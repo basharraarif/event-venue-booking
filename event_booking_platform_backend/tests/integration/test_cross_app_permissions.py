@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from core.models import Role
 from events.models import Event, Venue, Category
-from bookings.models import Booking # For testing booking access
+from bookings.models import Booking
 
 User = get_user_model()
 
@@ -19,7 +19,6 @@ class TestCrossAppPermissions:
 
     @pytest.fixture
     def common_roles(self):
-        # Ensure roles are created once
         customer, _ = Role.objects.get_or_create(name=Role.CUSTOMER)
         organizer, _ = Role.objects.get_or_create(name=Role.EVENT_ORGANIZER)
         manager, _ = Role.objects.get_or_create(name=Role.VENUE_MANAGER)
@@ -33,329 +32,772 @@ class TestCrossAppPermissions:
         return user
 
     @pytest.fixture
-    def event_organizer_user(self, common_roles):
-        user = User.objects.create_user(username='organizer_only', email='organizer@perm.test', password='password')
+    def event_organizer_user_C(self, common_roles): # User C
+        user = User.objects.create_user(username='organizer_C', email='organizer_C@perm.test', password='password')
         user.roles.add(common_roles['organizer'])
         return user
 
     @pytest.fixture
-    def venue_manager_user(self, common_roles):
-        user = User.objects.create_user(username='manager_only', email='manager@perm.test', password='password')
+    def event_organizer_user_D(self, common_roles): # User D
+        user = User.objects.create_user(username='organizer_D', email='organizer_D@perm.test', password='password')
+        user.roles.add(common_roles['organizer'])
+        return user
+
+    @pytest.fixture
+    def venue_manager_user_A(self, common_roles): # User A
+        user = User.objects.create_user(username='manager_A', email='manager_A@perm.test', password='password')
+        user.roles.add(common_roles['manager'])
+        return user
+
+    @pytest.fixture
+    def venue_manager_user_B(self, common_roles): # User B (another Venue Manager)
+        user = User.objects.create_user(username='manager_B', email='manager_B@perm.test', password='password')
         user.roles.add(common_roles['manager'])
         return user
 
     @pytest.fixture
     def admin_user(self, common_roles):
-        user = User.objects.create_user(username='admin_perm', email='admin@perm.test', password='password', is_staff=True) # Admins are staff
+        user = User.objects.create_user(username='admin_perm', email='admin@perm.test', password='password', is_staff=True)
         user.roles.add(common_roles['admin'])
         return user
-
-    @pytest.fixture
-    def sample_venue(self, admin_user): # Admin user creates a venue for general use in tests
-        return Venue.objects.create(name="Test Venue Global", address="123 Global St", capacity=100, owner=admin_user)
 
     @pytest.fixture
     def sample_category(self):
         return Category.objects.create(name="Test Category Global")
 
-    @pytest.fixture
-    def sample_event(self, sample_venue, admin_user, sample_category): # Admin user creates an event
-        event = Event.objects.create(
-            name="Test Event Global",
-            venue=sample_venue,
-            organizer=admin_user,
-            ticket_price=20.00,
-            start_time="2029-01-01T10:00:00Z",
-            end_time="2029-01-01T12:00:00Z",
-            status=Event.EventStatus.UPCOMING
-        )
-        event.categories.add(sample_category)
-        return event
-
-    # --- Venue Access Tests ---
-    def test_event_organizer_cannot_manage_venues(self, api_client, event_organizer_user, sample_venue):
-        api_client.force_authenticate(user=event_organizer_user)
-
-        # Create venue
+    # --- Scenario 1: Venue Manager Access Control ---
+    def test_venue_manager_permissions_on_own_and_others_venues(self, api_client, venue_manager_user_A, venue_manager_user_B, customer_user, admin_user):
+        # User A (Venue Manager) creates a Venue
+        api_client.force_authenticate(user=venue_manager_user_A)
         venue_create_url = reverse('venue-list')
-        venue_data = {'name': 'New Venue by Org', 'address': 'Org Address', 'capacity': 50, 'owner': event_organizer_user.pk} # owner might be ignored or auto-set
-        response = api_client.post(venue_create_url, venue_data, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        venue_data_A = {'name': 'Venue by A', 'address': 'A Address', 'capacity': 100}
+        response = api_client.post(venue_create_url, venue_data_A, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        venue_A_id = response.data['id']
+        venue_A_url = reverse('venue-detail', kwargs={'pk': venue_A_id})
 
-        # Update venue
-        venue_detail_url = reverse('venue-detail', kwargs={'pk': sample_venue.pk})
-        response = api_client.patch(venue_detail_url, {'name': 'Updated by Org'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # Delete venue
-        response = api_client.delete(venue_detail_url)
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # List venues (should be allowed by IsAuthenticatedOrReadOnly)
-        response = api_client.get(venue_create_url)
+        # User A can retrieve their own Venue
+        response = api_client.get(venue_A_url)
         assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A'
 
-        # Retrieve venue (should be allowed by IsAuthenticatedOrReadOnly)
-        response = api_client.get(venue_detail_url)
+        # User A can update their own Venue
+        response = api_client.patch(venue_A_url, {'name': 'Venue by A Updated'}, format='json')
         assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A Updated'
+
+        # User B (another Venue Manager) cannot update User A's Venue
+        api_client.force_authenticate(user=venue_manager_user_B)
+        response = api_client.patch(venue_A_url, {'name': 'Attempt Update by B'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot update User A's Venue
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.patch(venue_A_url, {'name': 'Attempt Update by Customer'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Admin user can update User A's Venue
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.patch(venue_A_url, {'name': 'Venue by A Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A Updated by Admin'
+
+        # User B (another Venue Manager) cannot delete User A's Venue
+        api_client.force_authenticate(user=venue_manager_user_B)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot delete User A's Venue
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # User A can delete their own Venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        # Verify it's deleted
+        response = api_client.get(venue_A_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Admin can delete any venue (re-create for this test)
+        response = api_client.post(venue_create_url, venue_data_A, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        venue_A_id_admin_del = response.data['id']
+        venue_A_url_admin_del = reverse('venue-detail', kwargs={'pk': venue_A_id_admin_del})
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.delete(venue_A_url_admin_del)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
-    # --- Event Access Tests ---
-    def test_venue_manager_cannot_manage_events(self, api_client, venue_manager_user, sample_event, sample_venue):
-        api_client.force_authenticate(user=venue_manager_user)
+    # --- Scenario 2: Event Organizer Access Control ---
+    def test_event_organizer_permissions_on_own_and_others_events(self, api_client, event_organizer_user_C, event_organizer_user_D, customer_user, admin_user, venue_manager_user_A, sample_category):
+        # Venue needs to be created first, by a Venue Manager or Admin
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_url = reverse('venue-list')
+        venue_data = {'name': 'Venue for Events', 'address': 'Event Venue St', 'capacity': 150}
+        response = api_client.post(venue_url, venue_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        created_venue_id = response.data['id']
 
-        # Create event
+        # User C (Event Organizer) creates an Event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_create_url = reverse('event-list')
+        event_data_C = {
+            'name': 'Event by C', 'venue': created_venue_id, 'ticket_price': 30,
+            'start_time': "2030-01-01T10:00:00Z", 'end_time': "2030-01-01T12:00:00Z",
+            'categories': [sample_category.name]
+        }
+        response = api_client.post(event_create_url, event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id = response.data['id']
+        event_C_url = reverse('event-detail', kwargs={'pk': event_C_id})
+
+        # User C can retrieve their own Event
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C'
+
+        # User C can update their own Event
+        response = api_client.patch(event_C_url, {'name': 'Event by C Updated'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C Updated'
+
+        # User D (another Event Organizer) cannot update User C's Event
+        api_client.force_authenticate(user=event_organizer_user_D)
+        response = api_client.patch(event_C_url, {'name': 'Attempt Update by D'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot update User C's Event
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.patch(event_C_url, {'name': 'Attempt Update by Customer'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Admin user can update User C's Event
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.patch(event_C_url, {'name': 'Event by C Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C Updated by Admin'
+
+        # User D (another Event Organizer) cannot delete User C's Event
+        api_client.force_authenticate(user=event_organizer_user_D)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot delete User C's Event
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # User C can delete their own Event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        # Verify it's deleted
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Admin can delete any event (re-create for this test)
+        response = api_client.post(event_create_url, event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id_admin_del = response.data['id']
+        event_C_url_admin_del = reverse('event-detail', kwargs={'pk': event_C_id_admin_del})
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.delete(event_C_url_admin_del)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    # --- Scenario 3: Cross-Role Restrictions ---
+    def test_venue_manager_cannot_create_event(self, api_client, venue_manager_user_A, sample_category):
+        # Setup: Venue Manager needs a venue to try to create an event for
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_url = reverse('venue-list')
+        venue_data = {'name': 'VM Venue for Event Test', 'address': 'VM Event Test St', 'capacity': 50}
+        response = api_client.post(venue_url, venue_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        vm_venue_id = response.data['id']
+
+        # Venue Manager (User A, not an Event Organizer) attempts to create an Event
         event_create_url = reverse('event-list')
         event_data = {
-            'name': 'New Event by VM', 'venue': sample_venue.pk, 'ticket_price': 10,
-            'start_time': "2029-02-01T10:00:00Z", 'end_time': "2029-02-01T12:00:00Z",
-            'organizer': venue_manager_user.pk # organizer might be auto-set or ignored
+            'name': 'Event by VM A', 'venue': vm_venue_id, 'ticket_price': 10,
+            'start_time': "2030-02-01T10:00:00Z", 'end_time': "2030-02-01T12:00:00Z",
+            'categories': [sample_category.name]
+            # Organizer is set by perform_create in viewset, which will be venue_manager_user_A
+            # The permission check IsAdminUser | IsEventOrganizer should deny this.
         }
         response = api_client.post(event_create_url, event_data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-        # Update event
-        event_detail_url = reverse('event-detail', kwargs={'pk': sample_event.pk})
-        response = api_client.patch(event_detail_url, {'name': 'Updated by VM'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # Delete event
-        response = api_client.delete(event_detail_url)
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # List events (should be allowed by IsAuthenticatedOrReadOnly)
-        response = api_client.get(event_create_url)
-        assert response.status_code == status.HTTP_200_OK
-
-        # Retrieve event (should be allowed by IsAuthenticatedOrReadOnly)
-        response = api_client.get(event_detail_url)
-        assert response.status_code == status.HTTP_200_OK
-
-    # --- Customer Access Tests ---
-    def test_customer_cannot_access_management_endpoints(self, api_client, customer_user, sample_venue, sample_event):
-        api_client.force_authenticate(user=customer_user)
-
-        # Venue management attempts
-        venue_list_url = reverse('venue-list')
-        venue_detail_url = reverse('venue-detail', kwargs={'pk': sample_venue.pk})
-        venue_data = {'name': 'New Venue by Cust', 'address': 'Cust Address', 'capacity': 30}
-
-        response = api_client.post(venue_list_url, venue_data, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        response = api_client.patch(venue_detail_url, {'name': 'Updated by Cust'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        response = api_client.delete(venue_detail_url)
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # Event management attempts
-        event_list_url = reverse('event-list')
-        event_detail_url = reverse('event-detail', kwargs={'pk': sample_event.pk})
-        event_data = {'name': 'New Event by Cust', 'venue': sample_venue.pk, 'ticket_price': 5}
-
-        response = api_client.post(event_list_url, event_data, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        response = api_client.patch(event_detail_url, {'name': 'Updated by Cust'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        response = api_client.delete(event_detail_url)
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-        # Listing and Retrieving Venues/Events should be allowed for customers
-        response = api_client.get(venue_list_url)
-        assert response.status_code == status.HTTP_200_OK
-        response = api_client.get(venue_detail_url)
-        assert response.status_code == status.HTTP_200_OK
-        response = api_client.get(event_list_url)
-        assert response.status_code == status.HTTP_200_OK
-        response = api_client.get(event_detail_url)
-        assert response.status_code == status.HTTP_200_OK
-
-    def test_customer_booking_access(self, api_client, customer_user, admin_user, sample_event):
-        api_client.force_authenticate(user=customer_user)
-
-        # Customer creates their own booking
-        booking_list_url = reverse('booking-list')
-        booking_data = {'event': sample_event.pk, 'number_of_tickets': 1}
-        response = api_client.post(booking_list_url, booking_data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        own_booking_id = response.data['id']
-        own_booking_url = reverse('booking-detail', kwargs={'pk': own_booking_id})
-
-        # Customer can list their own bookings (queryset filtering will apply)
-        response = api_client.get(booking_list_url)
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) == 1
-        assert response.data['results'][0]['id'] == own_booking_id
-
-        # Customer can retrieve their own booking
-        response = api_client.get(own_booking_url)
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data['id'] == own_booking_id
-
-        # Create another booking by a different user (admin for simplicity)
-        api_client.force_authenticate(user=admin_user)
-        other_booking_data = {'event': sample_event.pk, 'number_of_tickets': 1, 'user': admin_user.pk}
-        # Admin might need to specify user if serializer allows, or it defaults to request.user.
-        # The BookingViewSet perform_create sets user=request.user.
-        # So, admin books for themselves here.
-        response_admin_booking = api_client.post(booking_list_url, other_booking_data, format='json')
-        assert response_admin_booking.status_code == status.HTTP_201_CREATED
-        other_users_booking_id = response_admin_booking.data['id']
-        other_users_booking_url = reverse('booking-detail', kwargs={'pk': other_users_booking_id})
-
-        # Customer attempts to access the other user's booking
-        api_client.force_authenticate(user=customer_user)
-        response = api_client.get(other_users_booking_url)
-        # IsOwnerOrAdmin permission should deny access (403) or if filtered out by queryset, it would be 404.
-        # Given IsOwnerOrAdmin is explicitly checked for retrieve, 403 is more likely for direct access attempt.
-        # BookingViewSet.get_queryset() filters, so if the ID is not in the filtered list, DRF might return 404 first.
-        # Let's check for either. IsOwnerOrAdmin.has_object_permission returning False leads to 403.
-        assert response.status_code in [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND]
-
-        # Customer tries to list all bookings - should only see their own
-        response = api_client.get(booking_list_url)
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) == 1 # Should still be 1 (only their own)
-        booking_ids_in_list = [b['id'] for b in response.data['results']]
-        assert own_booking_id in booking_ids_in_list
-        assert other_users_booking_id not in booking_ids_in_list
-
-    # Add more tests for event organizer managing their own events vs others,
-    # and venue manager managing their own venues vs others.
-    def test_event_organizer_manages_own_vs_others_events(self, api_client, event_organizer_user, admin_user, sample_venue, sample_category):
-        # Event Organizer creates their own event
-        api_client.force_authenticate(user=event_organizer_user)
-        event_create_url = reverse('event-list')
-        own_event_data = {
-            'name': 'EO Own Event', 'venue': sample_venue.pk, 'ticket_price': 15,
-            'start_time': "2029-03-01T10:00:00Z", 'end_time': "2029-03-01T12:00:00Z",
-            'status': Event.EventStatus.UPCOMING
-            # Organizer is set by perform_create
-        }
-        response = api_client.post(event_create_url, own_event_data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        own_event_id = response.data['id']
-        own_event_url = reverse('event-detail', kwargs={'pk': own_event_id})
-
-        # EO can update their own event
-        response = api_client.patch(own_event_url, {'name': 'EO Own Event Updated'}, format='json')
-        assert response.status_code == status.HTTP_200_OK
-
-        # Admin creates another event
-        api_client.force_authenticate(user=admin_user)
-        other_event_data = {
-            'name': 'Admin Event', 'venue': sample_venue.pk, 'ticket_price': 25,
-            'organizer': admin_user.pk, # Admin sets self as organizer
-            'start_time': "2029-04-01T10:00:00Z", 'end_time': "2029-04-01T12:00:00Z",
-            'status': Event.EventStatus.UPCOMING
-        }
-        response_admin_event = api_client.post(event_create_url, other_event_data, format='json')
-        assert response_admin_event.status_code == status.HTTP_201_CREATED
-        other_event_id = response_admin_event.data['id']
-        other_event_url = reverse('event-detail', kwargs={'pk': other_event_id})
-
-        # EO tries to update Admin's event
-        api_client.force_authenticate(user=event_organizer_user)
-        response = api_client.patch(other_event_url, {'name': 'EO Tries Update Other Event'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN # IsEventOrganizer checks obj.organizer
-
-        # EO can delete their own event
-        response = api_client.delete(own_event_url)
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        # EO cannot delete Admin's event
-        response = api_client.delete(other_event_url)
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-
-    def test_venue_manager_manages_own_vs_others_venues(self, api_client, venue_manager_user, admin_user):
-        # Venue Manager creates their own venue
-        api_client.force_authenticate(user=venue_manager_user)
+    def test_event_organizer_cannot_create_venue(self, api_client, event_organizer_user_C):
+        # Event Organizer (User C, not a Venue Manager) attempts to create a Venue
+        api_client.force_authenticate(user=event_organizer_user_C)
         venue_create_url = reverse('venue-list')
-        own_venue_data = {'name': 'VM Own Venue', 'address': 'VM Address', 'capacity': 70}
-        response = api_client.post(venue_create_url, own_venue_data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        own_venue_id = response.data['id']
-        own_venue_url = reverse('venue-detail', kwargs={'pk': own_venue_id})
-
-        # VM can update their own venue
-        response = api_client.patch(own_venue_url, {'name': 'VM Own Venue Updated'}, format='json')
-        assert response.status_code == status.HTTP_200_OK
-
-        # Admin creates another venue
-        api_client.force_authenticate(user=admin_user)
-        other_venue_data = {'name': 'Admin Venue', 'address': 'Admin Address', 'capacity': 120, 'owner': admin_user.pk}
-        response_admin_venue = api_client.post(venue_create_url, other_venue_data, format='json')
-        assert response_admin_venue.status_code == status.HTTP_201_CREATED
-        other_venue_id = response_admin_venue.data['id']
-        other_venue_url = reverse('venue-detail', kwargs={'pk': other_venue_id})
-
-        # VM tries to update Admin's venue
-        api_client.force_authenticate(user=venue_manager_user)
-        response = api_client.patch(other_venue_url, {'name': 'VM Tries Update Other Venue'}, format='json')
-        assert response.status_code == status.HTTP_403_FORBIDDEN # IsVenueManager checks obj.owner
-
-        # VM can delete their own venue
-        response = api_client.delete(own_venue_url)
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        # VM cannot delete Admin's venue
-        response = api_client.delete(other_venue_url)
+        venue_data = {'name': 'Venue by EO C', 'address': 'EO C Address', 'capacity': 70}
+        # Owner is set by perform_create in viewset to event_organizer_user_C
+        # The permission check IsAdminUser | IsVenueManager should deny this.
+        response = api_client.post(venue_create_url, venue_data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_event_organizer_can_list_bookings_for_own_events(self, api_client, event_organizer_user, customer_user, sample_venue, sample_category):
-        # Organizer creates an event
-        api_client.force_authenticate(user=event_organizer_user)
-        event_data = {'name': 'Org Event Bookings', 'venue': sample_venue.pk, 'ticket_price': 10, 'start_time': "2029-05-01T10:00:00Z", 'end_time': "2029-05-01T12:00:00Z"}
-        response = api_client.post(reverse('event-list'), event_data, format='json')
+
+    # --- Test Admin full access (covered implicitly, but one explicit check) ---
+    def test_admin_can_manage_any_venue_and_event(self, api_client, admin_user, venue_manager_user_A, event_organizer_user_C, sample_category):
+        # VM User A creates a venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_data_A = {'name': 'Venue by A for Admin Test', 'address': 'A Address Admin', 'capacity': 100}
+        response = api_client.post(reverse('venue-list'), venue_data_A, format='json')
         assert response.status_code == status.HTTP_201_CREATED
-        org_event_id = response.data['id']
+        venue_A_id = response.data['id']
+        venue_A_url = reverse('venue-detail', kwargs={'pk': venue_A_id})
+
+        # EO User C creates an event in Venue A
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data_C = {
+            'name': 'Event by C for Admin Test', 'venue': venue_A_id, 'ticket_price': 30,
+            'start_time': "2030-03-01T10:00:00Z", 'end_time': "2030-03-01T12:00:00Z",
+            'categories': [sample_category.name]
+        }
+        response = api_client.post(reverse('event-list'), event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id = response.data['id']
+        event_C_url = reverse('event-detail', kwargs={'pk': event_C_id})
+
+        # Admin logs in
+        api_client.force_authenticate(user=admin_user)
+
+        # Admin can retrieve Venue A
+        response = api_client.get(venue_A_url)
+        assert response.status_code == status.HTTP_200_OK
+        # Admin can update Venue A
+        response = api_client.patch(venue_A_url, {'name': 'Venue A Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+
+        # Admin can retrieve Event C
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_200_OK
+        # Admin can update Event C
+        response = api_client.patch(event_C_url, {'name': 'Event C Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+
+        # Admin can delete Event C
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        # Admin can delete Venue A
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    # --- Booking Access (already partially covered in original test file, enhanced here) ---
+    # Test if Event Organizer can view bookings for their events
+    def test_event_organizer_booking_list_and_retrieve_access(self, api_client, event_organizer_user_C, customer_user, venue_manager_user_A, sample_category):
+        # Venue setup
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'Venue for Booking Test EO', 'address': 'EO Booking St', 'capacity': 50}, format='json')
+        assert venue_resp.status_code == status.HTTP_201_CREATED
+        venue_id = venue_resp.data['id']
+
+        # Event Organizer C creates an event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'EO C Event for Bookings', 'venue': venue_id, 'ticket_price': 10, 'start_time': "2030-04-01T10:00:00Z", 'end_time': "2030-04-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        assert event_resp.status_code == status.HTTP_201_CREATED
+        event_id = event_resp.data['id']
+
+        # Customer books the event
+        api_client.force_authenticate(user=customer_user)
+        booking_data = {'event': event_id, 'number_of_tickets': 1}
+        booking_resp = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert booking_resp.status_code == status.HTTP_201_CREATED
+        booking_id = booking_resp.data['id']
+
+        # Event Organizer C lists bookings, should see the booking for their event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        response = api_client.get(reverse('booking-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert any(b['id'] == booking_id for b in response.data.get('results', [])), "Booking for EO's event not found"
+
+        # Event Organizer C retrieves the booking for their event
+        # According to BookingViewSet.get_queryset, this should be allowed.
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': booking_id}))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == booking_id
+
+    # Test if Venue Manager can view bookings for events at their venues
+    def test_venue_manager_booking_list_and_retrieve_access(self, api_client, venue_manager_user_A, event_organizer_user_C, customer_user, sample_category):
+        # Venue Manager A creates a venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'VM A Venue for Bookings', 'address': 'VM A Booking St', 'capacity': 60}, format='json')
+        assert venue_resp.status_code == status.HTTP_201_CREATED
+        venue_id = venue_resp.data['id']
+
+        # Event Organizer C creates an event at VM A's venue
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'Event at VM A Venue', 'venue': venue_id, 'ticket_price': 12, 'start_time': "2030-05-01T10:00:00Z", 'end_time': "2030-05-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        assert event_resp.status_code == status.HTTP_201_CREATED
+        event_id = event_resp.data['id']
 
         # Customer books this event
         api_client.force_authenticate(user=customer_user)
-        booking_data = {'event': org_event_id, 'number_of_tickets': 1}
-        response = api_client.post(reverse('booking-list'), booking_data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        booking_id = response.data['id']
+        booking_data = {'event': event_id, 'number_of_tickets': 2}
+        booking_resp = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert booking_resp.status_code == status.HTTP_201_CREATED
+        booking_id = booking_resp.data['id']
 
-        # Organizer lists bookings - should see the booking for their event
-        api_client.force_authenticate(user=event_organizer_user)
+        # Venue Manager A lists bookings, should see the booking for event at their venue
+        api_client.force_authenticate(user=venue_manager_user_A)
         response = api_client.get(reverse('booking-list'))
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) > 0 # Check if list is not empty
-        assert any(b['id'] == booking_id for b in response.data['results']), "Booking for organizer's event not found in list"
+        assert any(b['id'] == booking_id for b in response.data.get('results', [])), "Booking for event at VM's venue not found"
 
-        # Organizer retrieves that specific booking
+        # Venue Manager A retrieves the booking for event at their venue
+        # According to BookingViewSet.get_queryset, this should be allowed.
         response = api_client.get(reverse('booking-detail', kwargs={'pk': booking_id}))
-        assert response.status_code == status.HTTP_200_OK # Or 403 if only admin/owner can retrieve directly
-                                                        # Current BookingViewSet.get_queryset allows this if event organizer matches
-                                                        # And IsOwnerOrAdmin for retrieve might need adjustment or specific check.
-                                                        # For now, assume get_queryset allows retrieve.
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == booking_id
+```python
+import pytest
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APIClient
 
-    def test_venue_manager_can_list_bookings_for_own_venues(self, api_client, venue_manager_user, event_organizer_user, customer_user, sample_category):
-        # Venue Manager creates a venue
-        api_client.force_authenticate(user=venue_manager_user)
-        venue_data = {'name': 'VM Venue Bookings', 'address': 'VM Venue St', 'capacity': 50}
-        response = api_client.post(reverse('venue-list'), venue_data, format='json')
+from django.contrib.auth import get_user_model
+from core.models import Role
+from events.models import Event, Venue, Category
+from bookings.models import Booking
+
+User = get_user_model()
+
+@pytest.mark.django_db
+class TestCrossAppPermissions:
+
+    @pytest.fixture
+    def api_client(self):
+        return APIClient()
+
+    @pytest.fixture
+    def common_roles(self):
+        customer, _ = Role.objects.get_or_create(name=Role.CUSTOMER)
+        organizer, _ = Role.objects.get_or_create(name=Role.EVENT_ORGANIZER)
+        manager, _ = Role.objects.get_or_create(name=Role.VENUE_MANAGER)
+        admin, _ = Role.objects.get_or_create(name=Role.ADMIN)
+        return {'customer': customer, 'organizer': organizer, 'manager': manager, 'admin': admin}
+
+    @pytest.fixture
+    def customer_user(self, common_roles):
+        user = User.objects.create_user(username='customer_only', email='customer@perm.test', password='password')
+        user.roles.add(common_roles['customer'])
+        return user
+
+    @pytest.fixture
+    def event_organizer_user_C(self, common_roles): # User C
+        user = User.objects.create_user(username='organizer_C', email='organizer_C@perm.test', password='password')
+        user.roles.add(common_roles['organizer'])
+        return user
+
+    @pytest.fixture
+    def event_organizer_user_D(self, common_roles): # User D
+        user = User.objects.create_user(username='organizer_D', email='organizer_D@perm.test', password='password')
+        user.roles.add(common_roles['organizer'])
+        return user
+
+    @pytest.fixture
+    def venue_manager_user_A(self, common_roles): # User A
+        user = User.objects.create_user(username='manager_A', email='manager_A@perm.test', password='password')
+        user.roles.add(common_roles['manager'])
+        return user
+
+    @pytest.fixture
+    def venue_manager_user_B(self, common_roles): # User B (another Venue Manager)
+        user = User.objects.create_user(username='manager_B', email='manager_B@perm.test', password='password')
+        user.roles.add(common_roles['manager'])
+        return user
+
+    @pytest.fixture
+    def admin_user(self, common_roles):
+        user = User.objects.create_user(username='admin_perm', email='admin@perm.test', password='password', is_staff=True)
+        user.roles.add(common_roles['admin'])
+        return user
+
+    @pytest.fixture
+    def sample_category(self):
+        return Category.objects.create(name="Test Category Global")
+
+    # --- Scenario 1: Venue Manager Access Control ---
+    def test_venue_manager_permissions_on_own_and_others_venues(self, api_client, venue_manager_user_A, venue_manager_user_B, customer_user, admin_user):
+        # User A (Venue Manager) creates a Venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_create_url = reverse('venue-list')
+        venue_data_A = {'name': 'Venue by A', 'address': 'A Address', 'capacity': 100}
+        response = api_client.post(venue_create_url, venue_data_A, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        venue_A_id = response.data['id']
+        venue_A_url = reverse('venue-detail', kwargs={'pk': venue_A_id})
+
+        # User A can retrieve their own Venue
+        response = api_client.get(venue_A_url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A'
+
+        # User A can update their own Venue
+        response = api_client.patch(venue_A_url, {'name': 'Venue by A Updated'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A Updated'
+
+        # User B (another Venue Manager) cannot update User A's Venue
+        api_client.force_authenticate(user=venue_manager_user_B)
+        response = api_client.patch(venue_A_url, {'name': 'Attempt Update by B'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot update User A's Venue
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.patch(venue_A_url, {'name': 'Attempt Update by Customer'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Admin user can update User A's Venue
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.patch(venue_A_url, {'name': 'Venue by A Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Venue by A Updated by Admin'
+
+        # User B (another Venue Manager) cannot delete User A's Venue
+        api_client.force_authenticate(user=venue_manager_user_B)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot delete User A's Venue
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # User A can delete their own Venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        # Verify it's deleted
+        response = api_client.get(venue_A_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Admin can delete any venue (re-create for this test)
+        response = api_client.post(venue_create_url, venue_data_A, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        venue_A_id_admin_del = response.data['id']
+        venue_A_url_admin_del = reverse('venue-detail', kwargs={'pk': venue_A_id_admin_del})
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.delete(venue_A_url_admin_del)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+    # --- Scenario 2: Event Organizer Access Control ---
+    def test_event_organizer_permissions_on_own_and_others_events(self, api_client, event_organizer_user_C, event_organizer_user_D, customer_user, admin_user, venue_manager_user_A, sample_category):
+        # Venue needs to be created first, by a Venue Manager or Admin
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_url = reverse('venue-list')
+        venue_data = {'name': 'Venue for Events', 'address': 'Event Venue St', 'capacity': 150}
+        response = api_client.post(venue_url, venue_data, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        created_venue_id = response.data['id']
+
+        # User C (Event Organizer) creates an Event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_create_url = reverse('event-list')
+        event_data_C = {
+            'name': 'Event by C', 'venue': created_venue_id, 'ticket_price': 30,
+            'start_time': "2030-01-01T10:00:00Z", 'end_time': "2030-01-01T12:00:00Z",
+            'categories': [sample_category.name]
+        }
+        response = api_client.post(event_create_url, event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id = response.data['id']
+        event_C_url = reverse('event-detail', kwargs={'pk': event_C_id})
+
+        # User C can retrieve their own Event
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C'
+
+        # User C can update their own Event
+        response = api_client.patch(event_C_url, {'name': 'Event by C Updated'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C Updated'
+
+        # User D (another Event Organizer) cannot update User C's Event
+        api_client.force_authenticate(user=event_organizer_user_D)
+        response = api_client.patch(event_C_url, {'name': 'Attempt Update by D'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot update User C's Event
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.patch(event_C_url, {'name': 'Attempt Update by Customer'}, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Admin user can update User C's Event
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.patch(event_C_url, {'name': 'Event by C Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['name'] == 'Event by C Updated by Admin'
+
+        # User D (another Event Organizer) cannot delete User C's Event
+        api_client.force_authenticate(user=event_organizer_user_D)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Customer User cannot delete User C's Event
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # User C can delete their own Event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        # Verify it's deleted
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Admin can delete any event (re-create for this test)
+        response = api_client.post(event_create_url, event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id_admin_del = response.data['id']
+        event_C_url_admin_del = reverse('event-detail', kwargs={'pk': event_C_id_admin_del})
+        api_client.force_authenticate(user=admin_user)
+        response = api_client.delete(event_C_url_admin_del)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    # --- Scenario 3: Cross-Role Restrictions ---
+    def test_venue_manager_cannot_create_event(self, api_client, venue_manager_user_A, sample_category):
+        # Setup: Venue Manager needs a venue to try to create an event for
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_url = reverse('venue-list')
+        venue_data = {'name': 'VM Venue for Event Test', 'address': 'VM Event Test St', 'capacity': 50}
+        response = api_client.post(venue_url, venue_data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
         vm_venue_id = response.data['id']
 
-        # Event organizer creates an event at VM's venue
-        api_client.force_authenticate(user=event_organizer_user)
-        event_data = {'name': 'Event at VM Venue', 'venue': vm_venue_id, 'ticket_price': 10, 'start_time': "2029-06-01T10:00:00Z", 'end_time': "2029-06-01T12:00:00Z"}
-        response = api_client.post(reverse('event-list'), event_data, format='json')
+        # Venue Manager (User A, not an Event Organizer) attempts to create an Event
+        event_create_url = reverse('event-list')
+        event_data = {
+            'name': 'Event by VM A', 'venue': vm_venue_id, 'ticket_price': 10,
+            'start_time': "2030-02-01T10:00:00Z", 'end_time': "2030-02-01T12:00:00Z",
+            'categories': [sample_category.name]
+            # Organizer is set by perform_create in viewset, which will be venue_manager_user_A
+            # The permission check IsAdminUser | IsEventOrganizer should deny this.
+        }
+        response = api_client.post(event_create_url, event_data, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_event_organizer_cannot_create_venue(self, api_client, event_organizer_user_C):
+        # Event Organizer (User C, not a Venue Manager) attempts to create a Venue
+        api_client.force_authenticate(user=event_organizer_user_C)
+        venue_create_url = reverse('venue-list')
+        venue_data = {'name': 'Venue by EO C', 'address': 'EO C Address', 'capacity': 70}
+        # Owner is set by perform_create in viewset to event_organizer_user_C
+        # The permission check IsAdminUser | IsVenueManager should deny this.
+        response = api_client.post(venue_create_url, venue_data, format='json')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+    # --- Test Admin full access (covered implicitly, but one explicit check) ---
+    def test_admin_can_manage_any_venue_and_event(self, api_client, admin_user, venue_manager_user_A, event_organizer_user_C, sample_category):
+        # VM User A creates a venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_data_A = {'name': 'Venue by A for Admin Test', 'address': 'A Address Admin', 'capacity': 100}
+        response = api_client.post(reverse('venue-list'), venue_data_A, format='json')
         assert response.status_code == status.HTTP_201_CREATED
-        event_id_at_vm_venue = response.data['id']
+        venue_A_id = response.data['id']
+        venue_A_url = reverse('venue-detail', kwargs={'pk': venue_A_id})
+
+        # EO User C creates an event in Venue A
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data_C = {
+            'name': 'Event by C for Admin Test', 'venue': venue_A_id, 'ticket_price': 30,
+            'start_time': "2030-03-01T10:00:00Z", 'end_time': "2030-03-01T12:00:00Z",
+            'categories': [sample_category.name]
+        }
+        response = api_client.post(reverse('event-list'), event_data_C, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+        event_C_id = response.data['id']
+        event_C_url = reverse('event-detail', kwargs={'pk': event_C_id})
+
+        # Admin logs in
+        api_client.force_authenticate(user=admin_user)
+
+        # Admin can retrieve Venue A
+        response = api_client.get(venue_A_url)
+        assert response.status_code == status.HTTP_200_OK
+        # Admin can update Venue A
+        response = api_client.patch(venue_A_url, {'name': 'Venue A Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+
+        # Admin can retrieve Event C
+        response = api_client.get(event_C_url)
+        assert response.status_code == status.HTTP_200_OK
+        # Admin can update Event C
+        response = api_client.patch(event_C_url, {'name': 'Event C Updated by Admin'}, format='json')
+        assert response.status_code == status.HTTP_200_OK
+
+        # Admin can delete Event C
+        response = api_client.delete(event_C_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        # Admin can delete Venue A
+        response = api_client.delete(venue_A_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    # --- Booking Access (already partially covered in original test file, enhanced here) ---
+    # Test if Event Organizer can view bookings for their events
+    def test_event_organizer_booking_list_and_retrieve_access(self, api_client, event_organizer_user_C, customer_user, venue_manager_user_A, sample_category):
+        # Venue setup
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'Venue for Booking Test EO', 'address': 'EO Booking St', 'capacity': 50}, format='json')
+        assert venue_resp.status_code == status.HTTP_201_CREATED
+        venue_id = venue_resp.data['id']
+
+        # Event Organizer C creates an event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'EO C Event for Bookings', 'venue': venue_id, 'ticket_price': 10, 'start_time': "2030-04-01T10:00:00Z", 'end_time': "2030-04-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        assert event_resp.status_code == status.HTTP_201_CREATED
+        event_id = event_resp.data['id']
+
+        # Customer books the event
+        api_client.force_authenticate(user=customer_user)
+        booking_data = {'event': event_id, 'number_of_tickets': 1}
+        booking_resp = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert booking_resp.status_code == status.HTTP_201_CREATED
+        booking_id = booking_resp.data['id']
+
+        # Event Organizer C lists bookings, should see the booking for their event
+        api_client.force_authenticate(user=event_organizer_user_C)
+        response = api_client.get(reverse('booking-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert any(b['id'] == booking_id for b in response.data.get('results', [])), "Booking for EO's event not found"
+
+        # Event Organizer C retrieves the booking for their event
+        # According to BookingViewSet.get_queryset, this should be allowed.
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': booking_id}))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == booking_id
+
+    # Test if Venue Manager can view bookings for events at their venues
+    def test_venue_manager_booking_list_and_retrieve_access(self, api_client, venue_manager_user_A, event_organizer_user_C, customer_user, sample_category):
+        # Venue Manager A creates a venue
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'VM A Venue for Bookings', 'address': 'VM A Booking St', 'capacity': 60}, format='json')
+        assert venue_resp.status_code == status.HTTP_201_CREATED
+        venue_id = venue_resp.data['id']
+
+        # Event Organizer C creates an event at VM A's venue
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'Event at VM A Venue', 'venue': venue_id, 'ticket_price': 12, 'start_time': "2030-05-01T10:00:00Z", 'end_time': "2030-05-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        assert event_resp.status_code == status.HTTP_201_CREATED
+        event_id = event_resp.data['id']
 
         # Customer books this event
         api_client.force_authenticate(user=customer_user)
-        booking_data = {'event': event_id_at_vm_venue, 'number_of_tickets': 1}
-        response = api_client.post(reverse('booking-list'), booking_data, format='json')
-        assert response.status_code == status.HTTP_201_CREATED
-        booking_id = response.data['id']
+        booking_data = {'event': event_id, 'number_of_tickets': 2}
+        booking_resp = api_client.post(reverse('booking-list'), booking_data, format='json')
+        assert booking_resp.status_code == status.HTTP_201_CREATED
+        booking_id = booking_resp.data['id']
 
-        # Venue Manager lists bookings - should see the booking for event at their venue
-        api_client.force_authenticate(user=venue_manager_user)
+        # Venue Manager A lists bookings, should see the booking for event at their venue
+        api_client.force_authenticate(user=venue_manager_user_A)
         response = api_client.get(reverse('booking-list'))
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) > 0
-        assert any(b['id'] == booking_id for b in response.data['results']), "Booking for event at manager's venue not found"
+        assert any(b['id'] == booking_id for b in response.data.get('results', [])), "Booking for event at VM's venue not found"
+
+        # Venue Manager A retrieves the booking for event at their venue
+        # According to BookingViewSet.get_queryset, this should be allowed.
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': booking_id}))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == booking_id
+
+    # Test for customer listing/retrieving only their own bookings (already in original test, ensure it's robust)
+    def test_customer_can_only_access_own_bookings(self, api_client, customer_user, admin_user, venue_manager_user_A, event_organizer_user_C, sample_category):
+        # Setup a venue and an event by admin/organizer
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'Venue for Customer Booking Test', 'address': 'Cust Booking St', 'capacity': 50}, format='json')
+        venue_id = venue_resp.data['id']
+
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'Event for Customer Booking', 'venue': venue_id, 'ticket_price': 5, 'start_time': "2030-06-01T10:00:00Z", 'end_time': "2030-06-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        event_id = event_resp.data['id']
+
+        # Customer creates their booking
+        api_client.force_authenticate(user=customer_user)
+        booking_data_own = {'event': event_id, 'number_of_tickets': 1}
+        own_booking_resp = api_client.post(reverse('booking-list'), booking_data_own, format='json')
+        assert own_booking_resp.status_code == status.HTTP_201_CREATED
+        own_booking_id = own_booking_resp.data['id']
+
+        # Admin creates another booking for the same event (or a different one)
+        api_client.force_authenticate(user=admin_user)
+        booking_data_other = {'event': event_id, 'number_of_tickets': 2} # Admin books for themselves
+        other_booking_resp = api_client.post(reverse('booking-list'), booking_data_other, format='json')
+        assert other_booking_resp.status_code == status.HTTP_201_CREATED
+        other_booking_id = other_booking_resp.data['id']
+
+        # Customer lists bookings
+        api_client.force_authenticate(user=customer_user)
+        response = api_client.get(reverse('booking-list'))
+        assert response.status_code == status.HTTP_200_OK
+        booking_ids_in_list = [b['id'] for b in response.data.get('results', [])]
+        assert own_booking_id in booking_ids_in_list
+        assert other_booking_id not in booking_ids_in_list
+        assert len(booking_ids_in_list) == 1
+
+        # Customer retrieves their own booking
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': own_booking_id}))
+        assert response.status_code == status.HTTP_200_OK
+
+        # Customer attempts to retrieve other user's booking
+        response = api_client.get(reverse('booking-detail', kwargs={'pk': other_booking_id}))
+        # This should be denied by IsOwnerOrAdmin or result in 404 due to queryset filtering
+        assert response.status_code in [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND]
+
+    # Test that read-only access is allowed for unauthenticated users for Venues and Events
+    def test_unauthenticated_user_readonly_access_to_venues_and_events(self, api_client, venue_manager_user_A, event_organizer_user_C, sample_category):
+        # Setup: Create a venue and an event
+        api_client.force_authenticate(user=venue_manager_user_A)
+        venue_resp = api_client.post(reverse('venue-list'), {'name': 'Public Venue', 'address': 'Public St', 'capacity': 100}, format='json')
+        venue_id = venue_resp.data['id']
+
+        api_client.force_authenticate(user=event_organizer_user_C)
+        event_data = {'name': 'Public Event', 'venue': venue_id, 'ticket_price': 20, 'start_time': "2030-07-01T10:00:00Z", 'end_time': "2030-07-01T12:00:00Z", 'categories': [sample_category.name]}
+        event_resp = api_client.post(reverse('event-list'), event_data, format='json')
+        event_id = event_resp.data['id']
+
+        # Unauthenticate client
+        api_client.force_authenticate(user=None)
+
+        # List Venues
+        response = api_client.get(reverse('venue-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data.get('results', [])) > 0
+
+        # Retrieve Venue
+        response = api_client.get(reverse('venue-detail', kwargs={'pk': venue_id}))
+        assert response.status_code == status.HTTP_200_OK
+
+        # List Events
+        response = api_client.get(reverse('event-list'))
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data.get('results', [])) > 0
+
+        # Retrieve Event
+        response = api_client.get(reverse('event-detail', kwargs={'pk': event_id}))
+        assert response.status_code == status.HTTP_200_OK
+
+        # Attempt to create, update, delete (should be denied)
+        response = api_client.post(reverse('venue-list'), {'name': 'Attempt Create', 'address': 'Attempt', 'capacity': 10}, format='json')
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED # Or 403 if IsAuthenticatedOrReadOnly is structured differently
+
+        response = api_client.patch(reverse('venue-detail', kwargs={'pk': venue_id}), {'name': 'Attempt Update'}, format='json')
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+        response = api_client.delete(reverse('venue-detail', kwargs={'pk': venue_id}))
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+```

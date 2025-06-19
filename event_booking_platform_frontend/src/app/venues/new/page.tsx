@@ -30,7 +30,8 @@ const AddVenuePageInternal = () => {
         // router.push(`/venues/${newVenue.id}`);
       }, 2000);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      const errorMessage =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(`Failed to create venue: ${errorMessage}`);
       console.error(err);
     } finally {
@@ -41,17 +42,25 @@ const AddVenuePageInternal = () => {
   return (
     <RoleRequired requiredRoles={ROLE_VENUE_MANAGER} showError={true}>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800 dark:text-white">Add New Venue</h1>
+        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800 dark:text-white">
+          Add New Venue
+        </h1>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+            role="alert"
+          >
             <strong className="font-bold">Error: </strong>
             <span className="block sm:inline">{error}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <div
+            className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4"
+            role="alert"
+          >
             <strong className="font-bold">Success: </strong>
             <span className="block sm:inline">{successMessage}</span>
           </div>

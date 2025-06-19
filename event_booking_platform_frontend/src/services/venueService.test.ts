@@ -12,7 +12,8 @@ import apiClient from './venueService'; // Import the named export
 jest.mock('./venueService', () => ({
   __esModule: true, // this property makes it work for ESM modules
   ...jest.requireActual('./venueService'), // import and retain default exports
-  default: { // Mock the default export (apiClient)
+  default: {
+    // Mock the default export (apiClient)
     get: jest.fn(),
     post: jest.fn(),
     put: jest.fn(),
@@ -38,7 +39,20 @@ describe('Venue Service', () => {
         count: 1,
         next: null,
         previous: null,
-        results: [{ id: 1, name: 'Test Venue', address: '123 Test St', capacity: 100, amenities: [], pricing_per_hour: "10.00", pricing_per_day: "100.00", is_available: true, created_at: '2023-01-01T00:00:00Z', updated_at: '2023-01-01T00:00:00Z' }],
+        results: [
+          {
+            id: 1,
+            name: 'Test Venue',
+            address: '123 Test St',
+            capacity: 100,
+            amenities: [],
+            pricing_per_hour: '10.00',
+            pricing_per_day: '100.00',
+            is_available: true,
+            created_at: '2023-01-01T00:00:00Z',
+            updated_at: '2023-01-01T00:00:00Z',
+          },
+        ],
       };
       mockApiClient.get.mockResolvedValue({ data: mockVenueData });
 
@@ -54,14 +68,27 @@ describe('Venue Service', () => {
       mockApiClient.get.mockRejectedValue(new Error(errorMessage));
 
       await expect(getVenues()).rejects.toThrow(errorMessage);
-      expect(mockApiClient.get).toHaveBeenCalledWith('/venues/', { params: undefined });
+      expect(mockApiClient.get).toHaveBeenCalledWith('/venues/', {
+        params: undefined,
+      });
     });
   });
 
   // Test for getVenueById
   describe('getVenueById', () => {
     it('should fetch a single venue successfully', async () => {
-      const mockVenue: Venue = { id: 1, name: 'Test Venue', address: '123 Test St', capacity: 100, amenities: [], pricing_per_hour: "10.00", pricing_per_day: "100.00", is_available: true, created_at: '2023-01-01T00:00:00Z', updated_at: '2023-01-01T00:00:00Z' };
+      const mockVenue: Venue = {
+        id: 1,
+        name: 'Test Venue',
+        address: '123 Test St',
+        capacity: 100,
+        amenities: [],
+        pricing_per_hour: '10.00',
+        pricing_per_day: '100.00',
+        is_available: true,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-01-01T00:00:00Z',
+      };
       mockApiClient.get.mockResolvedValue({ data: mockVenue });
 
       const venueId = '1';
@@ -84,8 +111,21 @@ describe('Venue Service', () => {
   // Test for createVenue
   describe('createVenue', () => {
     it('should create a venue successfully', async () => {
-      const venueData = { name: 'New Venue', address: '456 New St', capacity: 50, amenities: ["wifi"], pricing_per_hour: "15.00", pricing_per_day: "120.00", is_available: false };
-      const mockCreatedVenue: Venue = { id: 2, ...venueData, created_at: '2023-01-02T00:00:00Z', updated_at: '2023-01-02T00:00:00Z' };
+      const venueData = {
+        name: 'New Venue',
+        address: '456 New St',
+        capacity: 50,
+        amenities: ['wifi'],
+        pricing_per_hour: '15.00',
+        pricing_per_day: '120.00',
+        is_available: false,
+      };
+      const mockCreatedVenue: Venue = {
+        id: 2,
+        ...venueData,
+        created_at: '2023-01-02T00:00:00Z',
+        updated_at: '2023-01-02T00:00:00Z',
+      };
       mockApiClient.post.mockResolvedValue({ data: mockCreatedVenue });
 
       const result = await createVenue(venueData);
@@ -95,7 +135,15 @@ describe('Venue Service', () => {
     });
 
     it('should handle error when creating a venue', async () => {
-      const venueData = { name: 'New Venue', address: '456 New St', capacity: 50, amenities: [], pricing_per_hour: "15.00", pricing_per_day: "120.00", is_available: false };
+      const venueData = {
+        name: 'New Venue',
+        address: '456 New St',
+        capacity: 50,
+        amenities: [],
+        pricing_per_hour: '15.00',
+        pricing_per_day: '120.00',
+        is_available: false,
+      };
       const errorMessage = 'Creation failed';
       mockApiClient.post.mockRejectedValue(new Error(errorMessage));
 
@@ -109,12 +157,26 @@ describe('Venue Service', () => {
     it('should update a venue successfully', async () => {
       const venueId = '1';
       const venueUpdateData = { name: 'Updated Venue Name', capacity: 120 };
-      const mockUpdatedVenue: Venue = { id: 1, name: 'Updated Venue Name', address: '123 Test St', capacity: 120, amenities: [], pricing_per_hour: "10.00", pricing_per_day: "100.00", is_available: true, created_at: '2023-01-01T00:00:00Z', updated_at: '2023-01-03T00:00:00Z' };
+      const mockUpdatedVenue: Venue = {
+        id: 1,
+        name: 'Updated Venue Name',
+        address: '123 Test St',
+        capacity: 120,
+        amenities: [],
+        pricing_per_hour: '10.00',
+        pricing_per_day: '100.00',
+        is_available: true,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-01-03T00:00:00Z',
+      };
       mockApiClient.put.mockResolvedValue({ data: mockUpdatedVenue });
 
       const result = await updateVenue(venueId, venueUpdateData);
 
-      expect(mockApiClient.put).toHaveBeenCalledWith(`/venues/${venueId}/`, venueUpdateData);
+      expect(mockApiClient.put).toHaveBeenCalledWith(
+        `/venues/${venueId}/`,
+        venueUpdateData
+      );
       expect(result).toEqual(mockUpdatedVenue);
     });
 
@@ -124,8 +186,13 @@ describe('Venue Service', () => {
       const errorMessage = 'Update failed';
       mockApiClient.put.mockRejectedValue(new Error(errorMessage));
 
-      await expect(updateVenue(venueId, venueUpdateData)).rejects.toThrow(errorMessage);
-      expect(mockApiClient.put).toHaveBeenCalledWith(`/venues/${venueId}/`, venueUpdateData);
+      await expect(updateVenue(venueId, venueUpdateData)).rejects.toThrow(
+        errorMessage
+      );
+      expect(mockApiClient.put).toHaveBeenCalledWith(
+        `/venues/${venueId}/`,
+        venueUpdateData
+      );
     });
   });
 

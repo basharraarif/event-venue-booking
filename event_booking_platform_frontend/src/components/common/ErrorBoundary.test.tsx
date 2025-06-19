@@ -29,7 +29,9 @@ describe('ErrorBoundary', () => {
         <ProblemChild />
       </ErrorBoundary>
     );
-    expect(screen.getByText('Child component rendered successfully')).toBeInTheDocument();
+    expect(
+      screen.getByText('Child component rendered successfully')
+    ).toBeInTheDocument();
   });
 
   it('renders fallback UI when a child component throws an error', () => {
@@ -39,7 +41,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
     expect(screen.getByText('Custom fallback message.')).toBeInTheDocument();
-    expect(screen.queryByText('Child component rendered successfully')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Child component rendered successfully')
+    ).not.toBeInTheDocument();
     expect(consoleErrorMock).toHaveBeenCalledTimes(1); // Check if componentDidCatch was called
   });
 
@@ -49,7 +53,11 @@ describe('ErrorBoundary', () => {
         <ProblemChild shouldThrow />
       </ErrorBoundary>
     );
-    expect(screen.getByText('Something went wrong. Please try refreshing the page or contact support if the issue persists.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Something went wrong. Please try refreshing the page or contact support if the issue persists.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('shows error details in development mode', () => {
@@ -61,19 +69,23 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
     expect(screen.getByText('Error Details (Dev Mode)')).toBeInTheDocument();
-    expect(screen.getByText(/Test error from ProblemChild/)).toBeInTheDocument(); // Check for error stack/message
+    expect(
+      screen.getByText(/Test error from ProblemChild/)
+    ).toBeInTheDocument(); // Check for error stack/message
     process.env.NODE_ENV = originalNodeEnv; // Restore original NODE_ENV
   });
 
   it('does not show error details in production mode', () => {
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production'; // Simulate production environment
-     render(
+    render(
       <ErrorBoundary>
         <ProblemChild shouldThrow />
       </ErrorBoundary>
     );
-    expect(screen.queryByText('Error Details (Dev Mode)')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Error Details (Dev Mode)')
+    ).not.toBeInTheDocument();
     process.env.NODE_ENV = originalNodeEnv; // Restore original NODE_ENV
   });
 });

@@ -14,15 +14,20 @@ const OrganizerDashboardPage = () => {
   return (
     <div className="container mx-auto p-4">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Organizer Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+          Organizer Dashboard
+        </h1>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Placeholder Card: Create New Event */}
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">Create New Event</h2>
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">
+            Create New Event
+          </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-4">
-            Ready to host your next big thing? Get started by creating a new event.
+            Ready to host your next big thing? Get started by creating a new
+            event.
           </p>
           <Link href="/dashboard/organizer/events/create" legacyBehavior>
             <a className="btn btn-primary w-full">Create Event</a>
@@ -31,7 +36,9 @@ const OrganizerDashboardPage = () => {
 
         {/* Placeholder Card: Manage My Events */}
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">Manage My Events</h2>
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">
+            Manage My Events
+          </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-4">
             View, edit, or update details for events you are organizing.
           </p>
@@ -42,7 +49,9 @@ const OrganizerDashboardPage = () => {
 
         {/* Placeholder Card: View Bookings (for events) */}
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">View Bookings</h2>
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-white mb-3">
+            View Bookings
+          </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-4">
             Check booking status and attendee lists for your events.
           </p>
@@ -54,7 +63,6 @@ const OrganizerDashboardPage = () => {
 
       {/* Add more organizer-specific content here */}
       {/* e.g., <MyOrganizedEventsList /> */}
-
     </div>
   );
 };
